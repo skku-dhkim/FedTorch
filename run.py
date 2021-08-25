@@ -4,7 +4,7 @@ from torch import optim, nn
 from clients.fed_clients import Client
 from clients.fed_aggregator import Aggregator
 from train.local_trainer import Trainer
-
+from utils.logger import get_file_logger, get_stream_logger
 
 # NOTE: Experiment meta
 experiment_name = "baseline_test"
@@ -99,4 +99,4 @@ for gr in range(global_iter):
     aggregator.fedAvg(clients)
     accuracy = aggregator.evaluation(test_data=test)
     stream_logger.info("Global accuracy: %2.2f %%" % accuracy)
-    file_logger.info("[Global Round: {}/{}] Accuracy: {:2.2f}%".format(gr, global_iter, accuracy))
+    file_logger.info("[Global Round: {}/{}] Accuracy: {:2.2f}%".format(gr+1, global_iter, accuracy))
