@@ -12,3 +12,5 @@ level_styles = {
 }
 
 global_loglevel = 'DEBUG'
+
+summary_log_path = './logs'

@@ -5,9 +5,12 @@ from clients.fed_clients import Client
 from clients.fed_aggregator import Aggregator
 from train.local_trainer import Trainer
 from utils.logger import get_file_logger, get_stream_logger
+from torch.utils.tensorboard import SummaryWriter
+from utils.visualizer import save_client_meta
+
 
 # NOTE: Experiment meta
-experiment_name = "baseline_test"
+experiment_name = "baseline_test_v3"
 logging_path = "./logs/{}/experiment_summary.log".format(experiment_name)
 
 # NOTE: Client settings
@@ -17,26 +20,33 @@ random_distribution = False
 
 # NOTE: Data settings
 dataset = "Cifar-10"
-batch_size = 256
+batch_size = 64
 shuffle = True
 
 # NOTE: Training parameters
-model_name = "custom_CNN"
+model_name = "Custom_CNN"
+optim_fn = 'SGD'
+global_lr = 0.01
 lr = 0.01
 momentum = 0.9
 
 # NOTE: Federated Settings
-local_iter = 1
-global_iter = 3
+local_iter = 10
+global_iter = 50
 
 # NOTE: Logger Settings
 stream_logger = get_stream_logger(__name__, "DEBUG")
 file_logger = get_file_logger(__name__, logging_path, "INFO")
 
+# NOTE: Tensorboard summary writer
+summary_path = "./logs/{}".format(experiment_name)
+writer = SummaryWriter(summary_path+"/global")
+
 '''
 MAIN Starting from here.
 '''
 # 1. Logging the setting meta.
+# TODO: Add the optimizer into log
 file_logger.info("\n\t" + "*"*15 + " Client Settings " + "*"*15 +
                  "\n\t Number of clients: {}".format(number_of_clients) +
                  "\n\t Number of labels per client: {}".format(number_of_labels_per_client) +
@@ -60,6 +70,8 @@ fed_train, test, clients_meta = \
 file_logger.info("\n\t" + "*"*15 + " Client meta " + "*"*15 +
                  "\n\t" + str(clients_meta))
 
+save_client_meta(summary_path, clients_meta)
+
 # 3. Client initialization
 clients = []
 for client in fed_train:
@@ -68,13 +80,13 @@ for client in fed_train:
     clients.append(_client)
 
 # 4. Create Aggregator
-aggregator = Aggregator(model_name)
+aggregator = Aggregator(model_name, lr=global_lr)
 # model = model_manager.get_model("Resnet-50")
 # model = model_manager.get_model("custom_CNN")
 
 
-# 5. Create Trainer
-trainer = Trainer(experiment_name=experiment_name)
+# # 5. Create Trainer
+# trainer = Trainer(experiment_name=experiment_name)
 
 # 6. Training Global Steps
 for gr in range(global_iter):
@@ -93,10 +105,15 @@ for gr in range(global_iter):
         optimizer = optim.SGD(client.model.parameters(), lr=lr, momentum=momentum)
 
         # 6-5: Train steps
-        trainer.train_steps(client, loss_fn=criterion, optimizer=optimizer, epochs=local_iter)
+        client.train_steps(
+                loss_fn=criterion,
+                optimizer=optimizer,
+                epochs=local_iter,
+                experiment_name=experiment_name)
 
     # 6-6: FedAvg
     aggregator.fedAvg(clients)
     accuracy = aggregator.evaluation(test_data=test)
     stream_logger.info("Global accuracy: %2.2f %%" % accuracy)
     file_logger.info("[Global Round: {}/{}] Accuracy: {:2.2f}%".format(gr+1, global_iter, accuracy))
+    writer.add_scalar('Global Training Accuracy', accuracy, gr)

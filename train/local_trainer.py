@@ -20,12 +20,14 @@ class Trainer:
                 loss.backward()
                 optimizer.step()
 
-                # TODO: Maybe tensorboard is needed.
                 if i+1 == len(client.train_loader):
+                    # NOTE: Summary the losses
                     client.training_loss += loss.item()
                     global_count = client.global_iter * epochs + epoch
                     writer.add_scalar('training_loss',
                                       client.training_loss / (global_count + 1), global_count)
+
+                    # NOTE: Summary Accuracy
                     y_max_scores, y_max_idx = outputs.max(dim=1)
                     accuracy = (labels == y_max_idx).sum() / labels.size(0)
                     accuracy = accuracy.item() * 100
