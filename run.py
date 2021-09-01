@@ -10,7 +10,7 @@ from utils.visualizer import save_client_meta
 
 
 # NOTE: Experiment meta
-experiment_name = "baseline_test_v4"
+experiment_name = "baseline_test_v3"
 logging_path = "./logs/{}/experiment_summary.log".format(experiment_name)
 
 # NOTE: Client settings
@@ -26,7 +26,7 @@ shuffle = True
 # NOTE: Training parameters
 model_name = "Custom_CNN"
 optim_fn = 'SGD'
-global_lr = 1
+global_lr = 0.01
 lr = 0.01
 momentum = 0.9
 

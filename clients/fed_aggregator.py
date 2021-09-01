@@ -29,13 +29,24 @@ class Aggregator:
 
         self.__make_empty_model()
 
+        # TODO FedAvg - version 1
+        # # NOTE: FedAvg - weight collection
+        # for client in clients:
+        #     for name, param in self._global_weights.named_parameters():
+        #         param.data += self.lr * ((len(client.train['x']) / total_data_len) * client.model.state_dict()[name])
+        #     client.global_iter += 1
+        #
+        # self.global_model.load_state_dict(self._global_weights.state_dict())
+
+        # TODO FedAvg - version 2
         # NOTE: FedAvg - weight collection
         for client in clients:
             for name, param in self._global_weights.named_parameters():
-                param.data += self.lr * ((len(client.train['x']) / total_data_len) * client.model.state_dict()[name])
+                param.data += ((len(client.train['x']) / total_data_len) * client.weight_changes[name])
             client.global_iter += 1
 
-        self.global_model.load_state_dict(self._global_weights.state_dict())
+        for name, param in self.global_model.named_parameters():
+            param.data = param.data + (self.lr * self._global_weights.state_dict()[name])
 
     def evaluation(self, test_data):
         outputs = self.global_model(test_data['x'])
