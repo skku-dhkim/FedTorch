@@ -1,13 +1,22 @@
 from clients.fed_clients import Client
 from torch.utils.tensorboard import SummaryWriter
 from conf.logger_config import summary_log_path
+import torch
 
 
 class Trainer:
     def __init__(self, experiment_name):
         self.experiment_name = experiment_name
 
-    def train_steps(self, queue, client: Client, loss_fn, optimizer, epochs):
+    def train_steps(self, queue, client: Client, loss_fn, optimizer, epochs, gpu_flag, pid):
+
+        if gpu_flag:
+            device = torch.device(f'cuda:{pid}')
+        else:
+            device = torch.device('cpu')
+
+        torch.cuda.set_device(device)
+
         writer = SummaryWriter("{}/{}/{}".format(summary_log_path, self.experiment_name, client.name))
 
         # NOTE: Get original weights from model

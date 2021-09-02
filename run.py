@@ -1,6 +1,6 @@
 from dataset.data_loader import FedMNIST, FedCifar
 from torch.utils.data import DataLoader
-from torch import optim, nn
+from torch import optim, nn, cuda, device
 from clients.fed_clients import Client
 from clients.fed_aggregator import Aggregator
 from train.local_trainer import Trainer
@@ -9,9 +9,15 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.visualizer import save_client_meta
 from torch.multiprocessing import set_start_method, Process, SimpleQueue
 from conf.logger_config import summary_log_path
+import argparse
 
 
 if __name__ == '__main__':
+    # NOTE: Argument Parser
+    parser = argparse.ArgumentParser(description="Federated Learning on Pytorch")
+    parser.add_argument('--gpu', type=bool, default=False)
+    args = parser.parse_args()
+
     # NOTE: Experiment meta
     experiment_name = "baseline_test_v4"
     logging_path = "./logs/{}/experiment_summary.log".format(experiment_name)
@@ -39,7 +45,17 @@ if __name__ == '__main__':
     global_iter = 5
 
     # NOTE: Program settings
-    num_processes = 10
+    if not args.gpu:
+        gpu_flag = False
+        num_processes = number_of_clients
+    else:
+        if cuda.is_available():
+            gpu_flag = True
+            device_count = cuda.device_count()
+            num_processes = device_count
+        else:
+            gpu_flag = False
+            num_processes = number_of_clients
 
     # NOTE: Logger Settings
     stream_logger = get_stream_logger(__name__, "DEBUG")
@@ -112,7 +128,7 @@ if __name__ == '__main__':
         # 6-2: Every clients train their model with their own dataset.
         while clients:
             processes = []
-            for _ in range(num_processes):
+            for pid in range(num_processes):
                 client = clients.pop()
                 stream_logger.debug("Working on client: %s" % client.name)
                 # 6-3: Define loss function
@@ -122,7 +138,8 @@ if __name__ == '__main__':
                 # optimizer = optim.Adam(client.model.parameters(), lr=lr)
                 optimizer = optim.SGD(client.model.parameters(), lr=lr, momentum=momentum)
 
-                p = Process(target=trainer.train_steps, args=(queue, client, criterion, optimizer, local_iter, ))
+                p = Process(target=trainer.train_steps,
+                            args=(queue, client, criterion, optimizer, local_iter, gpu_flag, pid, ))
                 # TODO: This line will be deprecated in the future, after stable version of multiprocessing proved.
                 # # 6-5: Train steps
                 # client.train_steps(
