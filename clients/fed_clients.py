@@ -4,7 +4,6 @@ from torch.utils.tensorboard import SummaryWriter
 from typing import Optional
 from torch.nn import Module
 import copy
-import torch
 
 
 class Client:
@@ -28,11 +27,11 @@ class Client:
         if test_data:
             self.test_dataset = test_data
 
-    def __backup_original_weights(self):
+    def backup_original_weights(self):
         # NOTE: Copy originals
         self.weight_changes = copy.deepcopy(self.model.state_dict())
 
-    def __get_change_weights(self):
+    def get_change_weights(self):
         for param in self.model.state_dict():
             self.weight_changes[param] = self.model.state_dict()[param] - self.weight_changes[param]
 
@@ -40,7 +39,7 @@ class Client:
         writer = SummaryWriter("{}/{}/{}".format(summary_log_path, experiment_name, self.name))
 
         # NOTE: Get original weights from model
-        self.__backup_original_weights()
+        self.backup_original_weights()
 
         # NOTE: Train steps
         for epoch in range(epochs):
@@ -68,4 +67,4 @@ class Client:
                     writer.add_scalar('training_acc', accuracy, global_count)
 
         # NOTE: Calculate weight changes (Gradient)
-        self.__get_change_weights()
+        self.get_change_weights()

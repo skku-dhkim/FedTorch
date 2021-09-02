@@ -1,13 +1,17 @@
 from clients.fed_clients import Client
 from torch.utils.tensorboard import SummaryWriter
+from conf.logger_config import summary_log_path
 
 
 class Trainer:
     def __init__(self, experiment_name):
         self.experiment_name = experiment_name
 
-    def train_steps(self, client: Client, loss_fn, optimizer, epochs):
-        writer = SummaryWriter("./logs/{}/{}".format(self.experiment_name, client.name))
+    def train_steps(self, queue, client: Client, loss_fn, optimizer, epochs):
+        writer = SummaryWriter("{}/{}/{}".format(summary_log_path, self.experiment_name, client.name))
+
+        # NOTE: Get original weights from model
+        client.backup_original_weights()
 
         for epoch in range(epochs):
             for i, data in enumerate(client.train_loader, 0):
@@ -33,3 +37,8 @@ class Trainer:
                     accuracy = accuracy.item() * 100
                     writer.add_scalar('training_acc', accuracy, global_count)
 
+        # NOTE: Calculate weight changes (Gradient)
+        client.get_change_weights()
+
+        # NOTE: Note put result into multiprocessing queue
+        queue.put(client)
