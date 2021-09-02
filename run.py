@@ -89,6 +89,9 @@ if __name__ == '__main__':
                      "\n\t Dataset: {}".format(dataset) +
                      "\n\t Model: {}".format(model_name))
 
+    stream_logger.debug(f"GPU Flag: {gpu_flag}")
+    stream_logger.debug(f"Number of processes: {num_processes}")
+
     # 2. Loading the data
     # TODO: Data should call by name in the future.
     fed_train, test, clients_meta = \

@@ -15,7 +15,7 @@ class Trainer:
         else:
             device = torch.device('cpu')
 
-        torch.cuda.set_device(device)
+        # torch.cuda.set_device(device)
 
         writer = SummaryWriter("{}/{}/{}".format(summary_log_path, self.experiment_name, client.name))
 
@@ -24,9 +24,10 @@ class Trainer:
 
         for epoch in range(epochs):
             for i, data in enumerate(client.train_loader, 0):
-                inputs = data['x']
-                labels = data['y']
+                inputs = data['x'].to(device)
+                labels = data['y'].to(device)
 
+                client.model.to(device)
                 optimizer.zero_grad()
                 outputs = client.model(inputs)
                 loss = loss_fn(outputs, labels)
