@@ -1,45 +1,51 @@
-from clients.fed_clients import Client
+import torch
+import copy
 from torch.utils.tensorboard import SummaryWriter
 from conf.logger_config import summary_log_path
-import torch
+from collections import OrderedDict
+from model import model_manager
 
 
 class Trainer:
-    def __init__(self, experiment_name):
+    def __init__(self, experiment_name, model_name):
         self.experiment_name = experiment_name
+        self.model = model_manager.get_model(model_name)
 
-    def train_steps(self, queue, client: Client, loss_fn, optimizer, epochs, gpu_flag, pid):
+    def train(self, client_name, global_iter, training_loss,
+              model, train_loader,
+              lr, momentum, epochs, device):
 
-        if gpu_flag:
-            device = torch.device(f'cuda:{pid}')
-        else:
-            device = torch.device('cpu')
+        # 1. Set global model
+        self.model.load_state_dict(model)
 
-        # torch.cuda.set_device(device)
+        # NOTE: Tensorboard Summary writer
+        writer = SummaryWriter("{}/{}/{}".format(summary_log_path, self.experiment_name, client_name))
 
-        writer = SummaryWriter("{}/{}/{}".format(summary_log_path, self.experiment_name, client.name))
+        optimizer = torch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum)
+        loss_fn = torch.nn.CrossEntropyLoss()
 
-        # NOTE: Get original weights from model
-        client.backup_original_weights()
+        # 2. Get original weights from model
+        original_weights = copy.deepcopy(self.model.state_dict())
+        self.model.to(device)
 
+        # 3. Training logic
         for epoch in range(epochs):
-            for i, data in enumerate(client.train_loader, 0):
+            for i, data in enumerate(train_loader, 0):
                 inputs = data['x'].to(device)
                 labels = data['y'].to(device)
 
-                client.model.to(device)
                 optimizer.zero_grad()
-                outputs = client.model(inputs)
+                outputs = self.model(inputs)
                 loss = loss_fn(outputs, labels)
                 loss.backward()
                 optimizer.step()
 
-                if i+1 == len(client.train_loader):
+                if i + 1 == len(train_loader):
                     # NOTE: Summary the losses
-                    client.training_loss += loss.item()
-                    global_count = client.global_iter * epochs + epoch
+                    training_loss += loss.item()
+                    global_count = global_iter * epochs + epoch
                     writer.add_scalar('training_loss',
-                                      client.training_loss / (global_count + 1), global_count)
+                                      training_loss / (global_count + 1), global_count)
 
                     # NOTE: Summary Accuracy
                     y_max_scores, y_max_idx = outputs.max(dim=1)
@@ -47,8 +53,10 @@ class Trainer:
                     accuracy = accuracy.item() * 100
                     writer.add_scalar('training_acc', accuracy, global_count)
 
-        # NOTE: Calculate weight changes (Gradient)
-        client.get_change_weights()
+        # 4. Calculate weight changes (Gradient)
+        weight_changes = OrderedDict()
+        for param in self.model.state_dict():
+            weight_changes[param] = self.model.state_dict()[param] - original_weights[param]
 
-        # NOTE: Note put result into multiprocessing queue
-        queue.put(client)
+        return {'name': client_name, 'weights': weight_changes, 'data_len': len(train_loader)}
+

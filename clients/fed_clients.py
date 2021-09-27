@@ -3,6 +3,11 @@ from conf.logger_config import summary_log_path
 from torch.utils.tensorboard import SummaryWriter
 from typing import Optional
 from torch.nn import Module
+from torch import optim, cuda, device
+from model import model_manager
+from train.local_trainer import Trainer
+from collections import OrderedDict
+from torch.utils.data import DataLoader
 import copy
 
 
@@ -68,3 +73,40 @@ class Client:
 
         # NOTE: Calculate weight changes (Gradient)
         self.get_change_weights()
+
+
+class FedClient:
+    def __init__(self, client_name: str, train_data, experiment_name: str = "default"):
+        # NOTE: Client Meta setting
+        self.name = client_name
+        self.experiment_name = experiment_name
+
+        # NOTE: Data settings
+        self.train = train_data
+        self.train_loader = DataLoader(DatasetWrapper(data=train_data), batch_size=256, shuffle=True)
+
+        # NOTE: Training settings
+        self.global_iter = 0
+
+        # NOTE: Evaluation settings
+        self.training_loss = 0.0
+
+        # if test_data:
+        #     self.test_dataset = test_data
+
+    def get_weights(self, deep_copy=False):
+        if deep_copy:
+            return copy.deepcopy(self.model.state_dict())
+        return self.model.state_dict()
+
+    def set_weights(self, weights):
+        self.model.load_state_dict(weights)
+
+    def weight_changes(self):
+        weight_changes = OrderedDict()
+        for param in self.model.state_dict():
+            weight_changes[param] = self.model.state_dict()[param] - self.original_weights[param]
+        return weight_changes
+
+    def data_len(self):
+        return len(self.train)

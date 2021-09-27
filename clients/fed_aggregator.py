@@ -1,31 +1,26 @@
 import copy
 import torch
-
 from model import model_manager
 from typing import Optional
+from collections import OrderedDict
 
 
 class Aggregator:
     def __init__(self, model_name: str, lr: float = 0.01):
         self.global_model = model_manager.get_model(model_name)
-        self._global_weights: Optional[torch.nn.Module] = None
         self.lr = lr
-
-    def model_assignment(self, clients: list):
-        # Copy the model to client
-        for client in clients:
-            client.model = copy.deepcopy(self.global_model)
+        self.total_data_len = 0
+        self.empty_model = copy.deepcopy(self.global_model.state_dict())
 
     def __make_empty_model(self):
-        self._global_weights = copy.deepcopy(self.global_model)
-        for param in self._global_weights.parameters():
-            param.data -= param.data
+        for name in self.empty_model:
+            self.empty_model[name] -= self.empty_model[name]
 
-    def fedAvg(self, clients: list):
+    def fedAvg(self, collected_weights):
         # Get the total data size
         total_data_len = 0
-        for client in clients:
-            total_data_len += len(client.train['x'])
+        for client in collected_weights:
+            total_data_len += client['data_len']
 
         self.__make_empty_model()
 
@@ -37,16 +32,13 @@ class Aggregator:
         #     client.global_iter += 1
         #
         # self.global_model.load_state_dict(self._global_weights.state_dict())
-
         # TODO FedAvg - version 2
-        # NOTE: FedAvg - weight collection
-        for client in clients:
-            for name, param in self._global_weights.named_parameters():
-                param.data += ((len(client.train['x']) / total_data_len) * client.weight_changes[name])
-            client.global_iter += 1
+        for client in collected_weights:
+            for name, param in self.global_model.named_parameters():
+                self.empty_model[name] += ((client['data_len'] / total_data_len) * client['weights'][name])
 
         for name, param in self.global_model.named_parameters():
-            param.data = param.data + (self.lr * self._global_weights.state_dict()[name])
+            param.data = param.data + (self.lr * self.empty_model[name])
 
     def evaluation(self, test_data):
         outputs = self.global_model(test_data['x'])
@@ -54,5 +46,12 @@ class Aggregator:
         y_max_scores, y_max_idx = outputs.max(dim=1)
         accuracy = (labels == y_max_idx).sum() / labels.size(0)
         accuracy = accuracy.item() * 100
-        # print("Global Acc: {}".format(accuracy))
         return accuracy
+
+    def get_weights(self, deep_copy=False):
+        if deep_copy:
+            return copy.deepcopy(self.global_model.state_dict())
+        return self.global_model.state_dict()
+
+    def set_weights(self, weights):
+        self.global_model.load_state_dict(weights)
