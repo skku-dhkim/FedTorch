@@ -55,6 +55,7 @@ class Trainer:
 
         # 4. Calculate weight changes (Gradient)
         weight_changes = OrderedDict()
+        self.model.to('cpu')
         for param in self.model.state_dict():
             weight_changes[param] = self.model.state_dict()[param] - original_weights[param]
 

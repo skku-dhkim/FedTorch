@@ -15,6 +15,9 @@ import ray
 import psutil
 import time
 import torch
+import os
+
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 if __name__ == '__main__':
     # NOTE: Argument Parser
@@ -44,12 +47,12 @@ if __name__ == '__main__':
         'global_lr': 1,
         'local_lr': 0.01,
         'momentum': 0.9,
-        'local_epochs': 1,
-        'global_iter': 3
+        'local_epochs': 10,
+        'global_iter': 50
     }
 
     # NOTE: Program settings
-    core_per_ray = 2
+    core_per_ray = 3
 
     if not args.gpu:
         gpu_flag = False
