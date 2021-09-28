@@ -76,14 +76,14 @@ class Client:
 
 
 class FedClient:
-    def __init__(self, client_name: str, train_data, experiment_name: str = "default"):
+    def __init__(self, client_name: str, train_data, batch_size, experiment_name: str = "default"):
         # NOTE: Client Meta setting
         self.name = client_name
         self.experiment_name = experiment_name
 
         # NOTE: Data settings
         self.train = train_data
-        self.train_loader = DataLoader(DatasetWrapper(data=train_data), batch_size=256, shuffle=True)
+        self.train_loader = DataLoader(DatasetWrapper(data=train_data), batch_size=batch_size, shuffle=True)
 
         # NOTE: Training settings
         self.global_iter = 0

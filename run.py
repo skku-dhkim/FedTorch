@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.visualizer import save_client_meta
 from conf.logger_config import summary_log_path
 from collections import OrderedDict
+from distutils.util import strtobool
 
 import argparse
 import ray
@@ -22,11 +23,17 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 if __name__ == '__main__':
     # NOTE: Argument Parser
     parser = argparse.ArgumentParser(description="Federated Learning on Pytorch")
-    parser.add_argument('--gpu', type=bool, default=False)
+    parser.add_argument('--gpu', type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument('--memo', type=str, required=True)
+    parser.add_argument('--dataset', type=str, default='Cifar-10')
+    parser.add_argument('--model', type=str, default='Custom_CNN')
+    parser.add_argument('--slog', type=str, default='DEBUG')
+    parser.add_argument('--flog', type=str, default='INFO')
+
     args = parser.parse_args()
 
     # NOTE: Experiment meta
-    experiment_name = "debug"
+    experiment_name = args.memo
     logging_path = "./logs/{}/experiment_summary.log".format(experiment_name)
     memo = "Short memo for this experiment"
 
@@ -36,19 +43,19 @@ if __name__ == '__main__':
     random_distribution = False
 
     # NOTE: Data settings
-    dataset = "Cifar-10"
+    dataset = args.dataset
     batch_size = 64
     shuffle = True
 
     # NOTE: Training parameters
     hyper_parameters = {
-        'model': "Custom_CNN",
+        'model': args.model,
         'optim': 'SGD',
         'global_lr': 1,
         'local_lr': 0.01,
         'momentum': 0.9,
-        'local_epochs': 10,
-        'global_iter': 50
+        'local_epochs': 1,
+        'global_iter': 1
     }
 
     # NOTE: Program settings
@@ -70,8 +77,8 @@ if __name__ == '__main__':
             device = torch.device('cpu')
 
     # NOTE: Logger Settings
-    stream_logger = get_stream_logger(__name__, "DEBUG")
-    file_logger = get_file_logger(__name__, logging_path, "INFO")
+    stream_logger = get_stream_logger(__name__, args.slog)
+    file_logger = get_file_logger(__name__, logging_path, args.flog)
 
     # NOTE: Tensorboard summary writer
     summary_path = "{}/{}".format(summary_log_path, experiment_name)
@@ -125,13 +132,11 @@ if __name__ == '__main__':
     start = time.time()
     clients = {}
     for client in fed_train:
-        clients[client] = FedClient(client, fed_train[client], experiment_name)
+        clients[client] = FedClient(client, fed_train[client], batch_size, experiment_name)
     file_logger.info("Client initializing time: {}".format(time.time() - start))
 
     # 4. Create Aggregator
     aggregator = Aggregator(hyper_parameters['model'], lr=hyper_parameters['global_lr'])
-    # model = model_manager.get_model("Resnet-50")
-    # model = model_manager.get_model("custom_CNN")
 
     # 5. Create Trainer
     ray.init()
