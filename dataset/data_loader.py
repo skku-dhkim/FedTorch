@@ -1,187 +1,144 @@
+import os
 from abc import ABC
 
+import pandas as pd
 from torchvision.datasets import *
 from torchvision import transforms
-from multipledispatch import dispatch
 from torch.utils.data import Dataset
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import torch
 import random
 import re
-
-torch.manual_seed(77)
-
-
-@dispatch(int, int, int)
-def f_classes_per_client(_number_of_clients: int, _classes_per_client: int, _num_of_categories: int):
-    clients = {}
-
-    def __get_shuffled_index(__num_of_categories):
-        __class_idx = [x for x in range(__num_of_categories)]
-        random.shuffle(__class_idx)
-        return __class_idx
-
-    class_idx = __get_shuffled_index(_num_of_categories)
-
-    for idx in range(_number_of_clients):
-        client_id = "client_{}".format(idx)
-        for count in range(_classes_per_client):
-            if len(class_idx) == 0:
-                # Init class_idx when list is empty.
-                class_idx = __get_shuffled_index(_num_of_categories)
-            # Pop one
-            target_idx = class_idx.pop()
-            # Insert class settings
-            if client_id not in clients.keys():
-                clients[client_id] = {
-                    target_idx: 0
-                }
-            else:
-                clients[client_id][target_idx] = 0
-    return clients
-
-
-@dispatch(int, str, int)
-def f_classes_per_client(_number_of_clients: int, _classes_per_client: str, _num_of_categories: int):
-    if _classes_per_client.lower() != "random":
-        raise ValueError("Invalid \'classes_per_client\' value: {}".format(_classes_per_client))
-
-    clients = {}
-
-    def __random_list(__num_of_categories):
-        __random_idx = random.sample(range(0, __num_of_categories), random.randint(1, __num_of_categories))
-        return __random_idx
-
-    for idx in range(_number_of_clients):
-        random_idx = __random_list(_num_of_categories)
-        client_id = "client_{}".format(idx)
-        for r_idx in random_idx:
-            if client_id not in clients.keys():
-                clients[client_id] = {
-                    r_idx: 0
-                }
-            else:
-                clients[client_id][r_idx] = 0
-    return clients
+import copy
 
 
 class DataLoader:
-    def __init__(self, train_data, test_data):
-        self.train_X = train_data.data.numpy() / 255.0
-        self.train_Y = train_data.targets.numpy()
-        self.test_X = test_data.data.numpy() / 255.0
-        self.test_Y = test_data.targets.numpy()
-        self.num_of_categories = len(train_data.classes)
+    def __init__(self, train_data, test_data, log_path, data_type="img"):
+        if data_type == "img":
+            self.train_X = train_data.data / 255.0
+            self.test_X = test_data.data / 255.0
 
+        self.train_Y = np.array(train_data.targets)
+        self.test_Y = np.array(test_data.targets)
+        self.num_of_categories = len(train_data.classes)
         self.categories_train_X, self.categories_train_Y = None, None
 
-    def __data_proportion_allocate(self, clients: dict, proportion: bool):
-        def sampling(__clients, __total_target_len, __total_client_per_target):
-            __class_len = len(__total_target_len.keys())
-            for __idx in range(__class_len):
-                if proportion is not True:
-                    # Equal Divide
-                    __num_of_classes_per_client = int(__total_target_len[__idx] / __total_client_per_target[__idx])
+        self.log_path = os.path.join(log_path, "client_meta")
+        os.makedirs(self.log_path, exist_ok=True)
 
-                    for __client in __clients:
-                        if __idx in __clients[__client].keys():
-                            __clients[__client][__idx] = __num_of_classes_per_client
+    def _data_sampling(self, dirichlet_alpha: float, num_of_clients: int, num_of_classes: int) -> pd.DataFrame:
+        """
+        :param dirichlet_alpha: (float) adjusting iid-ness. higher the alpha, more iid-ness distribution.
+        :param num_of_clients: (int) number of clients
+        :param num_of_classes: (int) number of classes
+        :return:
+            DataFrame: Client data distribution for iid-ness.
+        """
+        # Get dirichlet distribution
+        s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
+        c_dist = pd.DataFrame(s)
 
-                else:
-                    # Random divide
-                    rnd_dist = np.random.dirichlet(np.ones(__total_client_per_target[__idx]), size=1)
-                    dist_index = 0
-                    for __client in __clients:
-                        if __idx in __clients[__client].keys():
-                            __clients[__client][__idx] = int(__total_target_len[__idx] * rnd_dist[0][dist_index])
-                            dist_index += 1
+        # Round for data division convenience.
+        c_dist = c_dist.round(2)
 
-            return __clients
+        # To plot
+        sns.set(rc={'figure.figsize': (10, 10)})
+        ax = sns.heatmap(c_dist, cmap='YlGnBu', annot=True)
+        ax.set(xlabel='Clients', ylabel='Classes')
+        figure = ax.get_figure()
 
-        # 1. Count total number of samples per class
-        total_target_len = {}
+        # Save to Image
+        figure.savefig(os.path.join(self.log_path, 'client_meta.png'), format='png')
+
+        return c_dist.transpose()
+
+    def _data_proportion_allocate(self, clients: list, proportion: pd.DataFrame) -> list:
+        """
+        :param clients: (list) Client lists
+        :param proportion: (DataFrame) Data proportion for every client on every labels.
+        :return:
+            list: Train dataset for every client.
+        """
+        # Initialize index manager. This is for start and last index managing.
+        idx_manage = {}
+        for i in range(proportion.shape[1]):
+            idx_manage[i] = 0
+
+        # Start allocating data
+        for idx, client in enumerate(clients):
+            distribution = proportion.iloc[idx]
+            for k, dist in enumerate(distribution):
+                num_of_data = int(len(self.categories_train_X[k]) * dist)
+                client['train']['x'].append(self.categories_train_X[k][idx_manage[k]:idx_manage[k]+num_of_data])
+                client['train']['y'].append(self.categories_train_Y[k][idx_manage[k]:idx_manage[k]+num_of_data])
+                # Update Last index number. It will be first index at next iteration.
+                idx_manage[k] = idx_manage[k]+num_of_data
+
+            # Make an integrated array.
+            client['train']['x'] = np.concatenate(client['train']['x'])
+            client['train']['y'] = np.concatenate(client['train']['y'])
+
+            # Make random index list
+            index = [j for j in range(len(client['train']['x']))]
+            random.shuffle(index)
+
+            client['train']['x'] = client['train']['x'][index]
+            client['train']['y'] = client['train']['y'][index]
+
+            client['test']['x'] = self.test_X
+            client['test']['y'] = self.test_Y
+
+        return clients
+
+    def _categorize(self, x, y) -> tuple:
+        categories_X = {}
+        categories_Y = {}
         for i in range(self.num_of_categories):
-            total_target_len[i] = 0
-        for idx in self.categories_train_Y:
-            total_target_len[idx] = len(self.categories_train_Y[idx])
+            # Get category index
+            category_index = np.where(y == i)[0]
+            categories_X[i] = x[category_index]
+            categories_Y[i] = y[category_index]
 
-        # 2. Count the number of clients per class
-        total_client_per_target = {}
-        for i in range(self.num_of_categories):
-            total_client_per_target[i] = 0
-        for client in clients:
-            for idx in clients[client].keys():
-                total_client_per_target[idx] += 1
+            # Make random index list
+            index = [j for j in range(len(categories_X[i]))]
+            random.shuffle(index)
 
-        # 3. Calculate samples per class of each clients.
-        clients = sampling(clients, total_target_len, total_client_per_target)
+            # Apply random shuffling with same index number
+            categories_X[i] = categories_X[i][index]
+            categories_Y[i] = categories_Y[i][index]
 
-        # 4. Allocate the sample
-        federated_dataset = {}
-        for client in clients:
-            federated_dataset[client] = {'x':  None, 'y': None}
+        return categories_X, categories_Y
 
-        for i in range(self.num_of_categories):
-            start_idx = 0
-            temp_repo_x = self.categories_train_X[i].copy()
-            temp_repo_y = self.categories_train_Y[i].copy()
-
-            for client in clients:
-                # If index 'i' is exist.
-                if i in clients[client].keys():
-                    last_index = start_idx + clients[client][i]
-
-                    if federated_dataset[client]['x'] is None:
-                        federated_dataset[client]['x'] = temp_repo_x[start_idx:last_index]
-                        federated_dataset[client]['y'] = temp_repo_y[start_idx:last_index]
-                    else:
-                        federated_dataset[client]['x'] = np.append(federated_dataset[client]['x'],
-                                                                   temp_repo_x[start_idx:last_index], axis=0)
-                        federated_dataset[client]['y'] = np.append(federated_dataset[client]['y'],
-                                                                   temp_repo_y[start_idx:last_index], axis=0)
-
-                    start_idx = last_index
-
-        for client in federated_dataset:
-            federated_dataset[client]['x'] = torch.tensor(federated_dataset[client]['x'], dtype=torch.float)
-            federated_dataset[client]['x'] = federated_dataset[client]['x'].permute(0, 3, 1, 2)
-            federated_dataset[client]['y'] = torch.tensor(federated_dataset[client]['y'])
-
-        return federated_dataset
-
-    def load(self, number_of_clients, classes_per_client, random_dist=False):
-        def categorize(__x, __y, __num_of_categories):
-            """
-            Get Categorized data value by index number.
-            :param __x: (numpy) data X
-            :param __y: (numpy) target Y
-            :param __num_of_categories: (int) number of classes
-            :return: (dict, dict) categorized data X, categorized target Y
-            """
-            __categories_X = {}
-            __categories_Y = {}
-            for __i in range(__num_of_categories):
-                __category_index = np.where(__y == __i)[0]
-                __categories_X[__i] = __x[__category_index]
-                __categories_Y[__i] = __y[__category_index]
-            return __categories_X, __categories_Y
-
+    def load(self, number_of_clients: int, dirichlet_alpha: float) -> list:
+        """
+        :param number_of_clients: (int) Number of client to join federated learning.
+        :param dirichlet_alpha: (float) Dirichlet distribution alpha. Greater the value more iid-ness data distribution.
+        :return:
+            list: Client data set with non-iid setting.
+        """
         # 1. Client definition and matching classes
-        clients = f_classes_per_client(number_of_clients, classes_per_client, self.num_of_categories)
+        clients = [{'train': {'x': [], 'y': []}, 'test': {'x': [], 'y': []}} for _ in range(number_of_clients)]
 
         # 2. Categorization of dataset
-        self.categories_train_X, self.categories_train_Y = categorize(self.train_X, self.train_Y,
-                                                                      self.num_of_categories)
-        # 3. Training set separation
-        federated_dataset = self.__data_proportion_allocate(clients, proportion=random_dist)
+        self.categories_train_X, self.categories_train_Y = self._categorize(self.train_X, self.train_Y)
 
-        # 4. Make test data set to Torch tensor
-        self.test_X = torch.tensor(self.test_X, dtype=torch.float)
-        self.test_X = self.test_X.permute(0, 3, 1, 2)
-        self.test_Y = torch.tensor(self.test_Y)
+        # 3. Get data separation distribution
+        client_distribution = self._data_sampling(dirichlet_alpha=dirichlet_alpha,
+                                                  num_of_clients=number_of_clients,
+                                                  num_of_classes=self.num_of_categories)
 
-        return federated_dataset, {'x': self.test_X, 'y': self.test_Y}, clients
+        # 4. Data allocation
+        federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
+
+        # # 5. Make test data set to Torch tensor
+        # self.test_X = torch.tensor(self.test_X, dtype=torch.float)
+        # self.test_X = self.test_X.permute(0, 3, 1, 2)
+        # self.test_Y = torch.tensor(self.test_Y)
+
+        return federated_dataset
 
     def load_original(self):
         x = self.train_X
@@ -208,39 +165,43 @@ class FedMNIST(DataLoader):
             download=True,
         )
 
-        DataLoader.__init__(self, train_data, test_data)
+        DataLoader.__init__(self, train_data, test_data, "./logs/test/")
 
 
 class FedCifar(DataLoader):
-    def __init__(self):
-        train_data = CIFAR10(
-            root="./data",
-            train=True,
-            download=True,
-            transform=transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ])
-            # target_transform=ToTensor()
-        )
-        test_data = CIFAR10(
-            root="./data",
-            train=False,
-            download=True,
-            transform=transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            ]),
-            # target_transform=ToTensor()
-        )
+    def __init__(self, mode):
+        if mode == 'cifar-10':
+            train_data = CIFAR10(
+                root="./data",
+                train=True,
+                download=True
+            )
+            test_data = CIFAR10(
+                root="./data",
+                train=False,
+                download=True
+            )
+        elif mode == 'cifar-100':
+            train_data = CIFAR100(
+                root="./data",
+                train=True,
+                download=True
+            )
+            test_data = CIFAR100(
+                root="./data",
+                train=False,
+                download=True
+            )
+        else:
+            raise ValueError("Invalid Parameter \'{}\'".format(mode))
 
-        train_data.data = torch.tensor(train_data.data)
-        train_data.targets = torch.tensor(train_data.targets)
+        # train_data.data = torch.tensor(train_data.data)
+        # train_data.targets = torch.tensor(train_data.targets)
+        #
+        # test_data.data = torch.tensor(test_data.data)
+        # test_data.targets = torch.tensor(test_data.targets)
 
-        test_data.data = torch.tensor(test_data.data)
-        test_data.targets = torch.tensor(test_data.targets)
-
-        DataLoader.__init__(self, train_data, test_data)
+        DataLoader.__init__(self, train_data, test_data, "./logs/test")
 
 
 class DatasetWrapper(Dataset, ABC):
