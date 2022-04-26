@@ -1,5 +1,5 @@
 import torchvision.models as model
-import model.custom_cnn as cnn
+import src.model.custom_cnn as cnn
 import torch
 
 
@@ -18,3 +18,5 @@ def get_model(model_name):
         return model.vgg11()
     elif model_name == "custom_cnn":
         return cnn.CustomCNN()
+    elif model_name == "mini_cnn":
+        return cnn.MiniCustomCNN()

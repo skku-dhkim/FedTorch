@@ -206,7 +206,7 @@ class FedCifar(DataLoader):
 
 class DatasetWrapper(Dataset, ABC):
     def __init__(self, data):
-        self.data_x = data['x']
+        self.data_x = torch.Tensor(data['x'])
         self.data_y = data['y']
 
     def __len__(self):
