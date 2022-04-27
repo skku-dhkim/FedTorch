@@ -136,7 +136,8 @@ if __name__ == '__main__':
     # TODO: Data should call by name in the future.
     stream_logger.info("[1] Data preprocessing...")
     start = time.time()
-    fed_dataset = FedCifar(mode=args.dataset.lower()).load(number_of_clients, dirichlet_alpha=dirichlet_alpha)
+    fed_dataset = FedCifar(mode=args.dataset.lower(), log_path=log_path).load(number_of_clients,
+                                                                              dirichlet_alpha=dirichlet_alpha)
     file_logger.info("Data preprocessing time: {:.2f}".format(time.time() - start))
 
     # Client initialization
@@ -179,7 +180,7 @@ if __name__ == '__main__':
         # (1) Client queue reset (Client selection)
         client_queue = [key for key in clients.keys()]
 
-        stream_logger.info("[*] Local training process...")
+        stream_logger.debug("[*] Local training process...")
         while client_queue:
             # (2) Assign Trainers to client
             for core in ray_train_container:
@@ -194,18 +195,18 @@ if __name__ == '__main__':
                     # NOTE: Pass, if client queue is empty.
                     pass
 
-        stream_logger.info("[**] Waiting result...")
+        stream_logger.debug("[**] Waiting result...")
         # (5) Ray get method; get weights after training.
         while unfinished:
             finished, unfinished = ray.wait(unfinished)
             clients_done += ray.get(finished)
         clients = {client.name: client for client in clients_done}
 
-        stream_logger.info("[***]FedAveraging...")
+        stream_logger.debug("[***]FedAveraging...")
         # (6) FedAvg
         aggregator.fedAvg([client.model for k, client in clients.items()])
 
-        stream_logger.info("[****]Evaluation...")
+        stream_logger.debug("[****]Evaluation...")
         # (7) Calculate Evaluation
         accuracy = aggregator.evaluation(device=device)
 
@@ -213,5 +214,5 @@ if __name__ == '__main__':
         stream_logger.info("Global accuracy: %2.2f %%" % accuracy)
         file_logger.info(
             "[Global Round: {}/{}] Accuracy: {:2.2f}%".format(gr+1, hyper_parameters['global_iter'], accuracy))
-        file_logger.info("Global iteration time: {}".format(time.time() - start))
-        stream_logger.info("Global iteration time: {}".format(time.time() - start))
+        file_logger.info("Global iteration time: {:2.3f}".format(time.time() - start))
+        stream_logger.info("Global iteration time: {:2.3f}".format(time.time() - start))

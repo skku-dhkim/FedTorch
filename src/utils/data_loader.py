@@ -133,11 +133,6 @@ class DataLoader:
         # 4. Data allocation
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
 
-        # # 5. Make test data set to Torch tensor
-        # self.test_X = torch.tensor(self.test_X, dtype=torch.float)
-        # self.test_X = self.test_X.permute(0, 3, 1, 2)
-        # self.test_Y = torch.tensor(self.test_Y)
-
         return federated_dataset
 
     def load_original(self):
@@ -153,7 +148,7 @@ class DataLoader:
 
 
 class FedMNIST(DataLoader):
-    def __init__(self):
+    def __init__(self, log_path):
         train_data = MNIST(
             root="./data",
             train=True,
@@ -165,11 +160,11 @@ class FedMNIST(DataLoader):
             download=True,
         )
 
-        DataLoader.__init__(self, train_data, test_data, "./logs/test/")
+        DataLoader.__init__(self, train_data, test_data, log_path)
 
 
 class FedCifar(DataLoader):
-    def __init__(self, mode):
+    def __init__(self, mode, log_path):
         if mode == 'cifar-10':
             train_data = CIFAR10(
                 root="./data",
@@ -201,7 +196,7 @@ class FedCifar(DataLoader):
         # test_data.data = torch.tensor(test_data.data)
         # test_data.targets = torch.tensor(test_data.targets)
 
-        DataLoader.__init__(self, train_data, test_data, "./logs/test")
+        DataLoader.__init__(self, train_data, test_data, log_path)
 
 
 class DatasetWrapper(Dataset, ABC):

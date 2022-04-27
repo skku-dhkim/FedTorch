@@ -7,7 +7,6 @@ from torch.nn import Module
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from conf.logger_config import summary_log_path
 from src.utils.data_loader import DatasetWrapper
 
 
@@ -96,11 +95,7 @@ class FedClient:
 
         # Model
         self._model = None
-        # print(type(model))
-        # print(model)
 
-        # if test_data:
-        #     self.test_dataset = test_data
     @property
     def model(self):
         return self._model
@@ -108,20 +103,6 @@ class FedClient:
     @model.setter
     def model(self, v):
         self._model = copy.deepcopy(v)
-
-    # def get_weights(self, deep_copy=False):
-    #     if deep_copy:
-    #         return copy.deepcopy(self.model.state_dict())
-    #     return self.model.state_dict()
-    #
-    # def set_weights(self, weights):
-    #     self.model.load_state_dict(weights)
-    #
-    # def weight_changes(self):
-    #     weight_changes = OrderedDict()
-    #     for param in self.model.state_dict():
-    #         weight_changes[param] = self.model.state_dict()[param] - self.original_weights[param]
-    #     return weight_changes
 
     def data_len(self):
         return len(self.train)

@@ -41,7 +41,7 @@ def get_stream_logger(name, level: str = "DEBUG"):
     logger = logging.getLogger(name)
 
     s_logger = logging.StreamHandler()
-    s_logger.setLevel(level_dict[level])
+    s_logger.setLevel(level_dict[level.upper()])
 
     formatter = coloredlogs.ColoredFormatter('%(asctime)s,%(msecs)03d %(name)s[%(process)d] %(levelname)s %(message)s',
                                              field_styles=field_styles,
@@ -49,7 +49,7 @@ def get_stream_logger(name, level: str = "DEBUG"):
     s_logger.setFormatter(formatter)
 
     logger.addHandler(s_logger)
-    logger.setLevel(level_dict[level])
+    logger.setLevel(level_dict[level.upper()])
     logger.propagate = False
 
     return logger

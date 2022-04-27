@@ -8,7 +8,7 @@ import torch
 
 from src.model import model_manager
 from collections import OrderedDict
-from src.train.similarity import cosin_clustering, uclidean_clustering
+#from src.train.similarity import cosin_clustering, uclidean_clustering
 from torch.utils.tensorboard import SummaryWriter
 
 # warnings.filterwarnings("ignore")

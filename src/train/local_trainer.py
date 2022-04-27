@@ -5,7 +5,6 @@ import ray
 
 from torch.utils.tensorboard import SummaryWriter
 from src.clients.fed_clients import FedClient
-from conf.logger_config import summary_log_path
 from collections import OrderedDict
 from src.model import model_manager
 from tqdm import tqdm
