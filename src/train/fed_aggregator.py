@@ -44,7 +44,7 @@ class Aggregator:
         # accuracy = accuracy.item()
         with SummaryWriter(self.summary_path) as writer:
             writer.add_scalar('global_acc', accuracy.item(), self.global_iter)
-        # return accuracy
+        return accuracy
 
     # def get_weights(self, deep_copy=False):
     #     if deep_copy:

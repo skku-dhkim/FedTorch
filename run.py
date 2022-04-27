@@ -53,7 +53,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    # NOTE: Program settings
+    # Program settings
     ray.init()
     core_per_ray = args.ray_core
 
@@ -207,12 +207,11 @@ if __name__ == '__main__':
 
         stream_logger.info("[****]Evaluation...")
         # (7) Calculate Evaluation
-        aggregator.evaluation(device=device)
-        #
-        # # NOTE: Logging
-        # stream_logger.info("Global accuracy: %2.2f %%" % accuracy)
-        # file_logger.info(
-        #     "[Global Round: {}/{}] Accuracy: {:2.2f}%".format(gr+1, hyper_parameters['global_iter'], accuracy))
-        # writer.add_scalar('Global Training Accuracy', accuracy, gr)
-        # file_logger.info("Global iteration time: {}".format(time.time() - start))
-        # stream_logger.info("Global iteration time: {}".format(time.time() - start))
+        accuracy = aggregator.evaluation(device=device)
+
+        # Logging
+        stream_logger.info("Global accuracy: %2.2f %%" % accuracy)
+        file_logger.info(
+            "[Global Round: {}/{}] Accuracy: {:2.2f}%".format(gr+1, hyper_parameters['global_iter'], accuracy))
+        file_logger.info("Global iteration time: {}".format(time.time() - start))
+        stream_logger.info("Global iteration time: {}".format(time.time() - start))
