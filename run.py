@@ -16,8 +16,17 @@ import time
 import torch
 import os
 import ray
+import copy
+import numpy as np
+import random
 
 # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+num_of_classes = {
+    'cifar-10': 10,
+    'cifar-100': 100,
+    'mnist': 10
+}
+
 
 if __name__ == '__main__':
     # NOTE: Argument Parser
@@ -45,7 +54,7 @@ if __name__ == '__main__':
 
     # Logs settings
     parser.add_argument('--exp_name', type=str, required=True)
-    parser.add_argument('--slog', type=str, default='DEBUG')
+    parser.add_argument('--slog', type=str, default='INFO')
     parser.add_argument('--flog', type=str, default='INFO')
 
     # System settings
@@ -136,15 +145,14 @@ if __name__ == '__main__':
     # TODO: Data should call by name in the future.
     stream_logger.info("[1] Data preprocessing...")
     start = time.time()
-    fed_dataset = FedCifar(mode=args.dataset.lower(), log_path=log_path).load(number_of_clients,
-                                                                              dirichlet_alpha=dirichlet_alpha)
+    dataset_object = FedCifar(mode=args.dataset.lower(), log_path=log_path)
+    fed_dataset, test_loader = dataset_object.load(number_of_clients, dirichlet_alpha=dirichlet_alpha)
     file_logger.info("Data preprocessing time: {:.2f}".format(time.time() - start))
 
     # Client initialization
     stream_logger.info("[2] Create Client Container...")
     start = time.time()
     clients = {}
-    global_model = model_manager.get_model(model_name=hyper_parameters['model'])
     for _id, data in enumerate(fed_dataset):
         clients[str(_id)] = FedClient(str(_id), data, batch_size, hyper_parameters)
     file_logger.info("Client initializing time: {:.2f}".format(time.time() - start))
@@ -152,8 +160,9 @@ if __name__ == '__main__':
     # Create Aggregator (Federated Server)
     stream_logger.info("[3] Create Aggregator(Federated Server Container)...")
     start = time.time()
-    aggregator = Aggregator(fed_dataset[0]['test'],
+    aggregator = Aggregator(test_loader,
                             hyper_parameters['model'],
+                            num_of_classes=num_of_classes[args.dataset.lower()],
                             global_lr=hyper_parameters['global_lr'],
                             log_path=log_path)
     file_logger.info("Aggregator initializing time: {:.2f}".format(time.time() - start))
@@ -167,7 +176,11 @@ if __name__ == '__main__':
     # else:
     #     RayTrainer = ray.remote(num_cpus=core_per_ray)(Trainer)
 
-    ray_train_container = [Trainer.remote(log_path, hyper_parameters['model']) for _ in range(num_processes)]
+    if num_processes >= number_of_clients:
+        num_processes = number_of_clients
+
+    ray_train_container = [Trainer.remote(log_path, aggregator.global_model, test_loader) for _ in range(num_processes)]
+    # [container.set_model.remote(aggregator.global_model) for container in ray_train_container]
     file_logger.info("Trainer initializing time: {:.2f}".format(time.time() - start))
 
     # Training Global Steps
@@ -187,7 +200,7 @@ if __name__ == '__main__':
                 try:
                     client = clients[client_queue.pop()]
                     # (3) Set global weights
-                    client.model = aggregator.global_model.get_weights()
+                    client.model = copy.deepcopy(aggregator.global_model.state_dict())
                     # (4) Train with each client data
                     result_id = core.train.remote(client, device)
                     unfinished.append(result_id)
@@ -204,11 +217,19 @@ if __name__ == '__main__':
 
         stream_logger.debug("[***]FedAveraging...")
         # (6) FedAvg
-        aggregator.fedAvg([client.model for k, client in clients.items()])
+        aggregator.fedAvg([(client.model, client.data_len()) for k, client in clients.items()])
+        # # TODO: Testing
+        # if gr == 0:
+        #     aggregator.fedConCat([client.model for k, client in clients.items()], True)
+        #     [core.set_model.remote(aggregator.global_model) for core in ray_train_container]
+        #     for key in clients.keys():
+        #         clients[key].training_settings['local_epoch'] = 10
+        # else:
+        #     aggregator.fedConCat([client.model for k, client in clients.items()], False)
 
         stream_logger.debug("[****]Evaluation...")
         # (7) Calculate Evaluation
-        accuracy = aggregator.evaluation(device=device)
+        accuracy = aggregator.evaluation()
 
         # Logging
         stream_logger.info("Global accuracy: %2.2f %%" % accuracy)
