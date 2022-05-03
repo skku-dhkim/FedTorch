@@ -45,8 +45,8 @@ class Trainer:
         # NOTE: You can make it to comments if you don't need logs
         # train_acc = self.compute_accuracy(data_loader=client.train_loader)
         # print("Train ACC Before training - {}: {:.2f}".format(client.name, train_acc))
-        test_acc = self.compute_accuracy(data_loader=self.test_loader)
-        print("Test ACC Before training - {}: {:.2f}".format(client.name, test_acc))
+        # test_acc = self.compute_accuracy(data_loader=self.test_loader)
+        # print("Test ACC Before training - {}: {:.2f}".format(client.name, test_acc))
 
         # 3. Training logic
         for epoch in range(client.training_settings['local_epochs']):
@@ -87,8 +87,8 @@ class Trainer:
         # NOTE: You can make it to comments if you don't need logs
         # train_acc = self.compute_accuracy(data_loader=client.train_loader)
         # print("Train ACC After training - {}: {:.2f}".format(client.name, train_acc))
-        test_acc = self.compute_accuracy(data_loader=self.test_loader)
-        print("Test ACC After training - {}: {:.2f}".format(client.name, test_acc))
+        # test_acc = self.compute_accuracy(data_loader=self.test_loader)
+        # print("Test ACC After training - {}: {:.2f}".format(client.name, test_acc))
 
         client.global_iter += 1
         client.model = self.model.get_weights()
