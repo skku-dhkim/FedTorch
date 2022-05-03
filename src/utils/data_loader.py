@@ -3,8 +3,8 @@ from abc import ABC
 
 import pandas as pd
 from torchvision.datasets import *
-from torchvision import transforms
-from torch.utils.data import Dataset
+from torchvision.transforms import *
+from torch.utils.data import Dataset, DataLoader
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -15,14 +15,14 @@ import re
 import copy
 
 
-class DataLoader:
-    def __init__(self, train_data, test_data, log_path, data_type="img"):
-        if data_type == "img":
-            self.train_X = train_data.data / 255.0
-            self.test_X = test_data.data / 255.0
-
+class CustomDataLoader:
+    def __init__(self, train_data, test_data, log_path):
+        self.train_X = train_data.data
         self.train_Y = np.array(train_data.targets)
+
+        self.test_X = test_data.data
         self.test_Y = np.array(test_data.targets)
+
         self.num_of_categories = len(train_data.classes)
         self.categories_train_X, self.categories_train_Y = None, None
 
@@ -72,10 +72,10 @@ class DataLoader:
             distribution = proportion.iloc[idx]
             for k, dist in enumerate(distribution):
                 num_of_data = int(len(self.categories_train_X[k]) * dist)
-                client['train']['x'].append(self.categories_train_X[k][idx_manage[k]:idx_manage[k]+num_of_data])
-                client['train']['y'].append(self.categories_train_Y[k][idx_manage[k]:idx_manage[k]+num_of_data])
+                client['train']['x'].append(self.categories_train_X[k][idx_manage[k]:idx_manage[k] + num_of_data])
+                client['train']['y'].append(self.categories_train_Y[k][idx_manage[k]:idx_manage[k] + num_of_data])
                 # Update Last index number. It will be first index at next iteration.
-                idx_manage[k] = idx_manage[k]+num_of_data
+                idx_manage[k] = idx_manage[k] + num_of_data
 
             # Make an integrated array.
             client['train']['x'] = np.concatenate(client['train']['x'])
@@ -87,13 +87,18 @@ class DataLoader:
 
             client['train']['x'] = client['train']['x'][index]
             client['train']['y'] = client['train']['y'][index]
-
             client['test']['x'] = self.test_X
             client['test']['y'] = self.test_Y
 
         return clients
 
-    def _categorize(self, x, y) -> tuple:
+    def _categorize(self, x: np.ndarray, y: np.ndarray) -> tuple:
+        """
+        :param x: (numpy.ndarray) input x
+        :param y: (numpy.ndarray) label y
+        :return:
+            tuple: (categories_X: dict, categories_Y: dict)
+        """
         categories_X = {}
         categories_Y = {}
         for i in range(self.num_of_categories):
@@ -112,12 +117,12 @@ class DataLoader:
 
         return categories_X, categories_Y
 
-    def load(self, number_of_clients: int, dirichlet_alpha: float) -> list:
+    def load(self, number_of_clients: int, dirichlet_alpha: float) -> tuple:
         """
         :param number_of_clients: (int) Number of client to join federated learning.
         :param dirichlet_alpha: (float) Dirichlet distribution alpha. Greater the value more iid-ness data distribution.
         :return:
-            list: Client data set with non-iid setting.
+            tuple: (list: Client data set with non-iid setting, DataLoader: Test set loader)
         """
         # 1. Client definition and matching classes
         clients = [{'train': {'x': [], 'y': []}, 'test': {'x': [], 'y': []}} for _ in range(number_of_clients)]
@@ -133,7 +138,9 @@ class DataLoader:
         # 4. Data allocation
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
 
-        return federated_dataset
+        test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y}))
+
+        return federated_dataset, test_loader
 
     def load_original(self):
         x = self.train_X
@@ -147,7 +154,7 @@ class DataLoader:
         return {'x': x, 'y': self.train_Y}, {'x': tx, 'y': self.test_Y}
 
 
-class FedMNIST(DataLoader):
+class FedMNIST(CustomDataLoader):
     def __init__(self, log_path):
         train_data = MNIST(
             root="./data",
@@ -160,43 +167,69 @@ class FedMNIST(DataLoader):
             download=True,
         )
 
-        DataLoader.__init__(self, train_data, test_data, log_path)
+        CustomDataLoader.__init__(self, train_data, test_data, log_path)
 
 
-class FedCifar(DataLoader):
+class FedCifar(CustomDataLoader):
     def __init__(self, mode, log_path):
         if mode == 'cifar-10':
+            normalize = Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
+                                  std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
+
             train_data = CIFAR10(
                 root="./data",
                 train=True,
-                download=True
+                download=True,
+                transform=Compose([
+                    ToTensor(),
+                    Lambda(lambda x: F.pad(
+                        Variable(x.unsqueeze(0), requires_grad=False),
+                        (4, 4, 4, 4), mode='reflect').data.squeeze()),
+                    ToPILImage(),
+                    ColorJitter(brightness=0),
+                    RandomCrop(32),
+                    RandomHorizontalFlip(),
+                    ToTensor(),
+                    normalize
+                ])
             )
             test_data = CIFAR10(
                 root="./data",
                 train=False,
-                download=True
+                download=True,
+                transform=Compose([
+                    ToTensor(),
+                    normalize
+                ])
             )
         elif mode == 'cifar-100':
+            normalize = transforms.Normalize(mean=[0.5070751592371323, 0.48654887331495095, 0.4409178433670343],
+                                             std=[0.2673342858792401, 0.2564384629170883, 0.27615047132568404])
             train_data = CIFAR100(
                 root="./data",
                 train=True,
-                download=True
+                download=True,
+                transform=Compose([
+                    transforms.RandomCrop(32, padding=4),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomRotation(15),
+                    transforms.ToTensor(),
+                    normalize
+                ])
             )
             test_data = CIFAR100(
                 root="./data",
                 train=False,
-                download=True
+                download=True,
+                transform=Compose([
+                    transforms.ToTensor(),
+                    normalize
+                ])
             )
         else:
             raise ValueError("Invalid Parameter \'{}\'".format(mode))
 
-        # train_data.data = torch.tensor(train_data.data)
-        # train_data.targets = torch.tensor(train_data.targets)
-        #
-        # test_data.data = torch.tensor(test_data.data)
-        # test_data.targets = torch.tensor(test_data.targets)
-
-        DataLoader.__init__(self, train_data, test_data, log_path)
+        CustomDataLoader.__init__(self, train_data, test_data, log_path)
 
 
 class DatasetWrapper(Dataset, ABC):
