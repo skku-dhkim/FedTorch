@@ -42,13 +42,85 @@ class Aggregator:
         self.global_model.load_state_dict(empty_model)
         self.global_iter += 1
 
-    def evaluation(self, device):
-        outputs = self.global_model(torch.Tensor(self.test_data['x']).to(device))
-        labels = torch.Tensor(self.test_data['y']).to(device)
-        y_max_scores, y_max_idx = outputs.max(dim=1)
-        accuracy = (labels == y_max_idx).sum() / labels.size(0)
-        # print(accuracy)
-        # accuracy = accuracy.item()
-        with SummaryWriter(self.summary_path) as writer:
-            writer.add_scalar('global_acc', accuracy.item(), self.global_iter)
+    def fedConCat(self, collected_weights, feature_map: bool):
+        from src.model.custom_cnn import CustomCNN
+
+        def _findWord(word, txt):
+            return re.search("\A{}".format(word), txt)
+
+        if feature_map:
+            concat_model = CustomCNN(num_of_clients=len(collected_weights), b_global=True,
+                                     n_of_clients=len(collected_weights))
+            empty_model = concat_model.make_empty_weights()
+            last_layer_name = list(concat_model.features.state_dict().keys())[-1]
+            for k, v in concat_model.state_dict().items():
+                if _findWord("fc", k) is not None:
+                    empty_model[k] = v
+                elif k != "features." + last_layer_name:
+                    for client in collected_weights:
+                        empty_model[k] += self.lr * (client[k] / len(collected_weights))
+                else:
+                    _w = []
+                    for client in collected_weights:
+                        _w.append(client[k])
+                    empty_model[k] = torch.cat(_w)
+            self.global_model = concat_model
+            self.global_model.set_weights(empty_model)
+            self.global_model.features.requires_grad_(False)
+            self.global_model.fc.requires_grad_(True)
+
+        else:
+            empty_model = self.global_model.make_empty_weights()
+
+            for k, v in self.global_model.state_dict().items():
+                if _findWord("fc", k) is not None:
+                    for client in collected_weights:
+                        empty_model[k] += self.lr * (client[k] / len(collected_weights))
+                else:
+                    empty_model[k] = collected_weights[0][k]
+            # print(empty_model)
+            # print(self.global_model.state_dict())
+            self.global_model.set_weights(empty_model)
+            self.global_model.features.requires_grad_(False)
+            self.global_model.fc.requires_grad_(True)
+
+        self.global_iter += 1
+
+
+
+        # for k, v in concat_model.features.state_dict().items():
+        #     _w = []
+        #     key = "features."+k
+        #     for client in collected_weights:
+        #         print(client[key].shape)
+        #         _w.append(client[key])
+        #     empty_model[key] = torch.cat(_w)
+        #
+        #     print(empty_model[key].shape)
+
+        # concat_model.set_weights(empty_model)
+        # print(empty_model[k])
+        # empty_model[k] += self.lr * (client[k] / len(collected_weights))
+
+        # self.global_model.features.training = False
+        # print(self.global_model.features)
+        # print(self.global_model.fc)
+        self.global_iter += 1
+        # self.global_model = concat_model
+
+    def evaluation(self):
+        with torch.no_grad():
+            self.global_model.to('cpu')
+            accuracy = []
+            total = []
+            for data in self.test_loader:
+                x = data['x'].to('cpu')
+                y = data['y'].to('cpu')
+                outputs = self.global_model(x)
+                y_max_scores, y_max_idx = outputs.max(dim=1)
+                accuracy.append((y == y_max_idx).sum().item())
+                total.append(len(y))
+            accuracy = sum(accuracy) / sum(total)
+            with SummaryWriter(self.summary_path) as writer:
+                writer.add_scalar('global_acc', accuracy, self.global_iter)
         return accuracy
