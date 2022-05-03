@@ -105,4 +105,4 @@ class FedClient:
         self._model = copy.deepcopy(v)
 
     def data_len(self):
-        return len(self.train)
+        return len(self.train['x'])
