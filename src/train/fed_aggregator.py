@@ -7,7 +7,9 @@ import ray
 import torch
 import re
 
-from src.model import model_manager, custom_cnn
+from src import *
+from typing import Optional
+from src.model import custom_cnn, model_call
 from collections import OrderedDict
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import confusion_matrix
@@ -83,15 +85,30 @@ class Aggregator:
                         empty_model[k] += self.lr * (client[k] / len(collected_weights))
                 else:
                     empty_model[k] = collected_weights[0][k]
-            # print(empty_model)
-            # print(self.global_model.state_dict())
+
             self.global_model.set_weights(empty_model)
             self.global_model.features.requires_grad_(False)
             self.global_model.fc.requires_grad_(True)
 
         self.global_iter += 1
 
+    def fedCat(self, collected_weights, classifier: bool):
+        from src.model.custom_cnn import ConcatCNN
 
+        empty_model = {}
+        if not classifier:
+            self.global_model = ConcatCNN(num_of_clients=10, num_classes=10)
+            weights_grop = []
+            for weights in collected_weights:
+                weights_grop.append(weights.features)
+            self.global_model.set_weights(weights_grop)
+        else:
+            for k, v in self.global_model.fc.state_dict().items():
+                for weights in collected_weights:
+                    if k not in empty_model.keys():
+                        empty_model[k] = self.lr * (weights[k] / len(collected_weights))
+                    else:
+                        empty_model[k] += self.lr * (weights[k] / len(collected_weights))
 
 
 
