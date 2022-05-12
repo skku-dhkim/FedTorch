@@ -1,37 +1,30 @@
 import torch
 import copy
 import os
-import ray
 
 from torch.utils.tensorboard import SummaryWriter
 from src.clients.fed_clients import FedClient
-from src.model.skeleton import FederatedModel
+from src.model import *
 from torch.utils.data import DataLoader
-from collections import OrderedDict
-from src.model import model_manager
-from tqdm import tqdm
 from typing import Optional
 
 
-@ray.remote
 class Trainer:
-    def __init__(self, log_path: str, model: FederatedModel, test_loader: Optional[DataLoader] = None):
+    def __init__(self, log_path: str, model: Optional[FederatedModel], test_loader: Optional[DataLoader] = None):
         self.summary_path = os.path.join(log_path, "tensorboard")
-        self.model = copy.deepcopy(model)
-        self.test_loader = test_loader
+        # self.model = copy.deepcopy(model)
+        # self.test_loader = test_loader
+
+    # def set_model(self, m):
+    #     self.model = copy.deepcopy(m)
 
     def train(self, client: FedClient, device: torch.device) -> FedClient:
-
-        # 1. Set global model
-        self.model.load_state_dict(client.model)
-        self.model.to(device)
-
         # Tensorboard Summary writer
         writer = SummaryWriter(os.path.join(self.summary_path, "client{}".format(client.name)))
 
         # TODO: Various optimization function should be implemented future.
         if client.training_settings['optim'].lower() == 'sgd':
-            optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()),
+            optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, client.model.parameters()),
                                         lr=client.training_settings['local_lr'],
                                         momentum=client.training_settings['momentum'],
                                         weight_decay=1e-5)
@@ -41,7 +34,7 @@ class Trainer:
         # TODO: Various loss function should be implemented future.
         loss_fn = torch.nn.CrossEntropyLoss().to(device)
 
-        # Log train and test set accuracy before training.
+        # Log of train and test set accuracy before training.
         # NOTE: You can make it to comments if you don't need logs
         # train_acc = self.compute_accuracy(data_loader=client.train_loader)
         # print("Train ACC Before training - {}: {:.2f}".format(client.name, train_acc))
@@ -49,6 +42,7 @@ class Trainer:
         # print("Test ACC Before training - {}: {:.2f}".format(client.name, test_acc))
 
         # 3. Training logic
+        client.model.requires_grad_(True)
         for epoch in range(client.training_settings['local_epochs']):
             training_loss = 0
             training_acc = 0
@@ -59,10 +53,8 @@ class Trainer:
                 labels = data['y'].to(device)
 
                 optimizer.zero_grad()
-                inputs.requires_grad = False
-                labels.requires_grad = False
 
-                outputs = self.model(inputs)
+                outputs = client.model(inputs)
                 loss = loss_fn(outputs, labels)
 
                 loss.backward()
@@ -70,7 +62,7 @@ class Trainer:
 
                 # Summary Loss
                 training_loss += loss.item()
-                training_acc += self.compute_accuracy(x=inputs, y=labels)
+                training_acc += self.compute_accuracy(client.model, x=inputs, y=labels)
 
                 counter += 1
 
@@ -91,21 +83,24 @@ class Trainer:
         # print("Test ACC After training - {}: {:.2f}".format(client.name, test_acc))
 
         client.global_iter += 1
-        client.model = self.model.get_weights()
+        # client.model = self.model.state_dict()
 
         return client
 
-    def compute_accuracy(self, x: Optional[torch.Tensor] = None,
+    def compute_accuracy(self,
+                         in_model: Optional[torch.nn.Module],
+                         x: Optional[torch.Tensor] = None,
                          y: Optional[torch.Tensor] = None,
                          data_loader: Optional[DataLoader] = None) -> float:
         """
+        :param in_model: (torch.nn.Module) input model
         :param x: (torch.Tensor) input x
         :param y: (torch.Tensor) label y
         :param data_loader: (torch.data.DataLoader) data loader class
         :return:
             float: accuracy of input data.
         """
-        model = copy.deepcopy(self.model)
+        model = copy.deepcopy(in_model)
         model.to('cpu')
         with torch.no_grad():
             if data_loader is not None:

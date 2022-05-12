@@ -17,22 +17,27 @@ from sklearn.metrics import confusion_matrix
 
 # @ray.remote(num_cpus=1)
 class Aggregator:
-    def __init__(self, test_data, model_name: str, num_of_classes: int, global_lr: float, log_path: str):
-        self.global_model = model_manager.get_model(model_name, num_of_classes=num_of_classes)
+    def __init__(self,
+                 test_data: Optional[DataLoader],
+                 data_name: str,
+                 model_name: str,
+                 global_lr: float,
+                 log_path: str):
+        self.global_model = model_call(model_name, num_of_classes[data_name.lower()])
         self.lr = global_lr
         self.test_loader = test_data
         self.summary_path = os.path.join(log_path, "tensorboard/global")
         self.global_iter = 0
 
-    def fedAvg(self, collected_weights):
+    def fedAvg(self, collected_result):
         empty_model = {}
         total_len = 0
 
-        for _, data_size in collected_weights:
+        for _, data_size in collected_result:
             total_len += data_size
-
+        self.global_model.named_parameters()
         for k, v in self.global_model.state_dict().items():
-            for weights, data_size in collected_weights:
+            for weights, data_size in collected_result:
                 if k not in empty_model.keys():
                     empty_model[k] = self.lr * weights[k] * (data_size / total_len)
                 else:
@@ -88,25 +93,8 @@ class Aggregator:
 
 
 
-        # for k, v in concat_model.features.state_dict().items():
-        #     _w = []
-        #     key = "features."+k
-        #     for client in collected_weights:
-        #         print(client[key].shape)
-        #         _w.append(client[key])
-        #     empty_model[key] = torch.cat(_w)
-        #
-        #     print(empty_model[key].shape)
 
-        # concat_model.set_weights(empty_model)
-        # print(empty_model[k])
-        # empty_model[k] += self.lr * (client[k] / len(collected_weights))
 
-        # self.global_model.features.training = False
-        # print(self.global_model.features)
-        # print(self.global_model.fc)
-        self.global_iter += 1
-        # self.global_model = concat_model
 
     def evaluation(self):
         with torch.no_grad():

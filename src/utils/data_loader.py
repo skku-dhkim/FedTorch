@@ -1,18 +1,16 @@
 import os
 from abc import ABC
+from typing import Dict, Optional, Any
 
 import pandas as pd
 from torchvision.datasets import *
 from torchvision.transforms import *
 from torch.utils.data import Dataset, DataLoader
 
-import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import torch
 import random
-import re
-import copy
 
 
 class CustomDataLoader:
@@ -42,7 +40,7 @@ class CustomDataLoader:
         c_dist = pd.DataFrame(s)
 
         # Round for data division convenience.
-        c_dist = c_dist.round(2)
+        c_dist = c_dist.round(3)
 
         # To plot
         sns.set(rc={'figure.figsize': (10, 10)})
@@ -99,8 +97,9 @@ class CustomDataLoader:
         :return:
             tuple: (categories_X: dict, categories_Y: dict)
         """
-        categories_X = {}
-        categories_Y = {}
+        categories_X: Dict[int, Optional[Any]] = {}
+        categories_Y: Dict[int, Optional[Any]] = {}
+
         for i in range(self.num_of_categories):
             # Get category index
             category_index = np.where(y == i)[0]
@@ -142,17 +141,6 @@ class CustomDataLoader:
 
         return federated_dataset, test_loader
 
-    def load_original(self):
-        x = self.train_X
-        x = torch.Tensor(x)
-        x = x.permute(0, 3, 1, 2)
-
-        tx = self.test_X
-        tx = torch.Tensor(tx)
-        tx = tx.permute(0, 3, 1, 2)
-
-        return {'x': x, 'y': self.train_Y}, {'x': tx, 'y': self.test_Y}
-
 
 class FedMNIST(CustomDataLoader):
     def __init__(self, log_path):
@@ -181,14 +169,6 @@ class FedCifar(CustomDataLoader):
                 train=True,
                 download=True,
                 transform=Compose([
-                    ToTensor(),
-                    Lambda(lambda x: F.pad(
-                        Variable(x.unsqueeze(0), requires_grad=False),
-                        (4, 4, 4, 4), mode='reflect').data.squeeze()),
-                    ToPILImage(),
-                    ColorJitter(brightness=0),
-                    RandomCrop(32),
-                    RandomHorizontalFlip(),
                     ToTensor(),
                     normalize
                 ])

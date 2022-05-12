@@ -1,9 +1,10 @@
 from src.utils.data_loader import FedCifar
 from src.utils.logger import get_file_logger, get_stream_logger
-from src.clients.fed_clients import FedClient
+from src.clients.fed_clients import FedClient, Client
 from src.model import model_manager
 from src.train.local_trainer import Trainer
 from src.train.fed_aggregator import Aggregator
+from src import num_of_classes
 
 from torch import cuda
 from torch.utils.tensorboard import SummaryWriter
@@ -16,20 +17,10 @@ import time
 import torch
 import os
 import ray
-import copy
-import numpy as np
-import random
-
-# os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-num_of_classes = {
-    'cifar-10': 10,
-    'cifar-100': 100,
-    'mnist': 10
-}
 
 
 if __name__ == '__main__':
-    # NOTE: Argument Parser
+    # Argument Parser
     parser = argparse.ArgumentParser(description="Federated Learning on Pytorch")
 
     # GPU settings
@@ -68,11 +59,12 @@ if __name__ == '__main__':
 
     if not args.gpu:
         gpu_flag = False
-        num_processes = int(psutil.cpu_count(logical=False) / core_per_ray)
+        num_processes = int(psutil.cpu_count(logical=False))
         device = torch.device('cpu')
     else:
         if cuda.is_available():
             gpu_flag = True
+            fraction = 4
             num_processes = cuda.device_count()
             device = torch.device('cuda')
         else:
@@ -97,8 +89,8 @@ if __name__ == '__main__':
     dirichlet_alpha = args.dirichlet_alpha
     dataset = args.dataset
 
-    # Data settings
-    batch_size = args.batch
+    # # Data settings
+    # batch_size = args.batch
 
     # Training settings
     hyper_parameters = {
@@ -108,7 +100,8 @@ if __name__ == '__main__':
         'local_lr': args.local_lr,
         'momentum': args.momentum,
         'local_epochs': args.local_iter,
-        'global_iter': args.global_iter
+        'global_iter': args.global_iter,
+        'batch_size': args.batch
     }
 
     # Logging setting meta.
@@ -118,7 +111,7 @@ if __name__ == '__main__':
                      "\n\t Dataset: {}".format(dataset) +
 
                      "\n\t" + "*" * 15 + " Training Hyper-parameters " + "*" * 15 +
-                     "\n\t Batch size: {}".format(batch_size) +
+                     "\n\t Batch size: {}".format(args.batch) +
                      "\n\t Optimizer: {}".format(hyper_parameters['optim']) +
                      "\n\t Momentum: {}".format(hyper_parameters['momentum']) +
                      "\n\t Global Learning rate: {}".format(hyper_parameters['global_lr']) +
@@ -139,69 +132,71 @@ if __name__ == '__main__':
     stream_logger.debug(f"GPU Flag: {gpu_flag}")
 
     stream_logger.info("Main Logic Started.")
-
-    'Main Here'
-    # Loading the data
+    
+    # TODO: Main function starts, this function should be wrapped in the future.
     # TODO: Data should call by name in the future.
+    # INFO - 1. Loading data
     stream_logger.info("[1] Data preprocessing...")
     start = time.time()
     dataset_object = FedCifar(mode=args.dataset.lower(), log_path=log_path)
     fed_dataset, test_loader = dataset_object.load(number_of_clients, dirichlet_alpha=dirichlet_alpha)
     file_logger.info("Data preprocessing time: {:.2f}".format(time.time() - start))
 
-    # Client initialization
+    # INFO - 2. Client initialization
     stream_logger.info("[2] Create Client Container...")
     start = time.time()
     clients = {}
     for _id, data in enumerate(fed_dataset):
-        clients[str(_id)] = FedClient(str(_id), data, batch_size, hyper_parameters)
+        clients[str(_id)] = Client(str(_id),
+                                   {'dataset': args.dataset.lower(), 'data': data},
+                                   hyper_parameters, log_path=log_path)
     file_logger.info("Client initializing time: {:.2f}".format(time.time() - start))
 
-    # Create Aggregator (Federated Server)
+    # INFO - 3. Create Aggregator (Federated Server)
     stream_logger.info("[3] Create Aggregator(Federated Server Container)...")
     start = time.time()
     aggregator = Aggregator(test_loader,
-                            hyper_parameters['model'],
-                            num_of_classes=num_of_classes[args.dataset.lower()],
+                            model_name=hyper_parameters['model'], data_name=args.dataset,
                             global_lr=hyper_parameters['global_lr'],
                             log_path=log_path)
     file_logger.info("Aggregator initializing time: {:.2f}".format(time.time() - start))
 
-    # Create Trainer
+    # INFO - 4. Create Trainer
     stream_logger.info("[4] Create Train Container...")
     start = time.time()
-
-    # if gpu_flag:
-    #     RayTrainer = ray.remote(num_gpus=1)(Trainer)
-    # else:
-    #     RayTrainer = ray.remote(num_cpus=core_per_ray)(Trainer)
 
     if num_processes >= number_of_clients:
         num_processes = number_of_clients
 
-    ray_train_container = [Trainer.remote(log_path, aggregator.global_model, test_loader) for _ in range(num_processes)]
+    if gpu_flag:
+        container = [ray.remote(num_gpus=0.25)(Trainer) for _ in range(num_processes)]
+    else:
+        container = [ray.remote(num_cpus=1)(Trainer) for _ in range(num_processes)]
+
+    ray_train_container = [container.remote(log_path, aggregator.global_model, test_loader) for container in container]
     # [container.set_model.remote(aggregator.global_model) for container in ray_train_container]
     file_logger.info("Trainer initializing time: {:.2f}".format(time.time() - start))
 
-    # Training Global Steps
+    # INFO - 5. Training Global Steps
+    # TODO: Global training function should be implemented separately for the future.
     stream_logger.info("[5] Global step starts...")
     for gr in tqdm(range(hyper_parameters['global_iter']), desc="Global steps #"):
         start = time.time()
         clients_done = []
         unfinished = []
 
-        # (1) Client queue reset (Client selection)
+        # INFO - (1) Client queue reset (Client selection)
         client_queue = [key for key in clients.keys()]
 
         stream_logger.debug("[*] Local training process...")
         while client_queue:
-            # (2) Assign Trainers to client
+            # INFO - (2) Assign Trainers to client
             for core in ray_train_container:
                 try:
                     client = clients[client_queue.pop()]
-                    # (3) Set global weights
-                    client.model = copy.deepcopy(aggregator.global_model.state_dict())
-                    # (4) Train with each client data
+                    # INFO - (3) Set global weights
+                    client.set_parameters(aggregator.global_model.parameters())
+                    # INFO - (4) Train with each client data
                     result_id = core.train.remote(client, device)
                     unfinished.append(result_id)
                 except IndexError:
@@ -209,18 +204,19 @@ if __name__ == '__main__':
                     pass
 
         stream_logger.debug("[**] Waiting result...")
-        # (5) Ray get method; get weights after training.
+        # INFO - (5) Ray get method; get weights after training.
         while unfinished:
             finished, unfinished = ray.wait(unfinished)
             clients_done += ray.get(finished)
         clients = {client.name: client for client in clients_done}
 
         stream_logger.debug("[***]FedAveraging...")
-        # (6) FedAvg
-        aggregator.fedAvg([(client.model, client.data_len()) for k, client in clients.items()])
+
+        # INFO - (6) FedAvg
+        aggregator.fedAvg([(client.get_parameters(), client.data_len()) for k, client in clients.items()])
         # # TODO: Testing
         # if gr == 0:
-        #     aggregator.fedConCat([client.model for k, client in clients.items()], True)
+        #     aggregator.fedCat([client.model for k, client in clients.items()], classifier=False)
         #     [core.set_model.remote(aggregator.global_model) for core in ray_train_container]
         #     for key in clients.keys():
         #         clients[key].training_settings['local_epoch'] = 10
