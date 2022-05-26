@@ -1,19 +1,11 @@
-import collections
 import copy
 import os
 import torch
 
-from collections import OrderedDict
-from typing import Optional
-
-from torch.nn import Module
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-
-from src import num_of_classes
+from src import *
 from src.utils.data_loader import DatasetWrapper
 from src.model import model_call, FederatedModel
-from typing import Optional
+from collections import OrderedDict
 
 
 class Client:
@@ -39,8 +31,7 @@ class Client:
         self.global_iter = 0
 
         # Model
-        self.model: Optional[FederatedModel] = model_call(train_settings['model'],
-                                                           num_of_classes[data['dataset']])
+        self.model: Optional[FederatedModel] = model_call(train_settings['model'], num_of_classes[data['dataset']])
 
         # Log path
         self.log_path = log_path
@@ -53,12 +44,12 @@ class Client:
     # def model(self, v) -> None:
     #     self._model = copy.deepcopy(v)
 
-    def set_parameters(self, parameters):
+    def set_parameters(self, parameters: Parameter) -> None:
         params_dict = zip(self.model.state_dict().keys(), parameters)
         state_dict = OrderedDict({k: v.clone().detach() for k, v in params_dict})
         self.model.load_state_dict(state_dict, strict=True)
 
-    def get_parameters(self, ordict=True):
+    def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, list]:
         if ordict:
             return OrderedDict({k: val.clone().detach().cpu() for k, val in self.model.state_dict().items()})
         else:
