@@ -1,16 +1,10 @@
-import os
+from .. import *
 from abc import ABC
-from typing import Dict, Optional, Any
-
-import pandas as pd
 from torchvision.datasets import *
 from torchvision.transforms import *
 from torch.utils.data import Dataset, DataLoader
 
 import seaborn as sns
-import numpy as np
-import torch
-import random
 
 
 class CustomDataLoader:
@@ -29,9 +23,10 @@ class CustomDataLoader:
 
     def _data_sampling(self, dirichlet_alpha: float, num_of_clients: int, num_of_classes: int) -> pd.DataFrame:
         """
-        :param dirichlet_alpha: (float) adjusting iid-ness. higher the alpha, more iid-ness distribution.
-        :param num_of_clients: (int) number of clients
-        :param num_of_classes: (int) number of classes
+        Args:
+            dirichlet_alpha: (float) adjusting iid-ness. higher the alpha, more iid-ness distribution.
+            num_of_clients: (int) number of clients
+            num_of_classes: (int) number of classes
         :return:
             DataFrame: Client data distribution for iid-ness.
         """
@@ -118,8 +113,9 @@ class CustomDataLoader:
 
     def load(self, number_of_clients: int, dirichlet_alpha: float) -> tuple:
         """
-        :param number_of_clients: (int) Number of client to join federated learning.
-        :param dirichlet_alpha: (float) Dirichlet distribution alpha. Greater the value more iid-ness data distribution.
+        Args
+            number_of_clients: (int) Number of client to join federated learning.
+            dirichlet_alpha: (float) Dirichlet distribution alpha. Greater the value more iid-ness data distribution.
         :return:
             tuple: (list: Client data set with non-iid setting, DataLoader: Test set loader)
         """
@@ -148,19 +144,27 @@ class FedMNIST(CustomDataLoader):
             root="./data",
             train=True,
             download=True,
+            transform=Compose([
+                ToTensor(),
+                Normalize((0.1307,), (0.3081,))
+            ])
         )
         test_data = MNIST(
             root="./data",
             train=False,
             download=True,
+            transform=Compose([
+                ToTensor(),
+                Normalize((0.1307,), (0.3081,))
+            ])
         )
 
         CustomDataLoader.__init__(self, train_data, test_data, log_path)
 
 
 class FedCifar(CustomDataLoader):
-    def __init__(self, mode, log_path):
-        if mode == 'cifar-10':
+    def __init__(self, log_path, **kwargs):
+        if kwargs['mode'.lower()] == 'cifar-10':
             normalize = Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
                                   std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
 
@@ -182,7 +186,7 @@ class FedCifar(CustomDataLoader):
                     normalize
                 ])
             )
-        elif mode == 'cifar-100':
+        elif kwargs['mode'.lower()] == 'cifar-100':
             normalize = transforms.Normalize(mean=[0.5070751592371323, 0.48654887331495095, 0.4409178433670343],
                                              std=[0.2673342858792401, 0.2564384629170883, 0.27615047132568404])
             train_data = CIFAR100(
@@ -207,18 +211,18 @@ class FedCifar(CustomDataLoader):
                 ])
             )
         else:
-            raise ValueError("Invalid Parameter \'{}\'".format(mode))
+            raise ValueError("Invalid Parameter \'{}\'".format(kwargs['mode'.lower()]))
 
         CustomDataLoader.__init__(self, train_data, test_data, log_path)
 
 
 class DatasetWrapper(Dataset, ABC):
     def __init__(self, data):
-        self.data_x = torch.Tensor(data['x'])
+        self.data_x = data['x']
         self.data_y = data['y']
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data_x)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> dict:
         return {'x': self.data_x[item], 'y': self.data_y[item]}
