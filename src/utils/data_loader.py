@@ -80,8 +80,8 @@ class CustomDataLoader:
 
             client['train']['x'] = client['train']['x'][index]
             client['train']['y'] = client['train']['y'][index]
-            client['test']['x'] = self.test_X
-            client['test']['y'] = self.test_Y
+            # client['test']['x'] = self.test_X
+            # client['test']['y'] = self.test_Y
 
         return clients
 
@@ -111,10 +111,19 @@ class CustomDataLoader:
 
         return categories_X, categories_Y
 
-    def _to_dataset(self, clients: list) -> list:
+    def _to_dataset(self, clients: list, validation_split: float = 0.1) -> list:
         for client in clients:
-            client['train'] = DatasetWrapper(client['train'], transform=self.transform)
-            client['test'] = DatasetWrapper(client['test'], transform=self.transform)
+            indices = int(len(client['train']['x']) * validation_split)
+
+            train_x = client['train']['x'][:-indices]
+            train_y = client['train']['y'][:-indices]
+
+            valid_x = client['train']['x'][-indices:]
+            valid_y = client['train']['y'][-indices:]
+
+            client['train'] = DatasetWrapper({'x': train_x, 'y': train_y}, transform=self.transform)
+            client['valid'] = DatasetWrapper({'x': valid_x, 'y': valid_y}, transform=self.transform)
+            # client['test'] = DatasetWrapper(client['test'], transform=self.transform)
         return clients
 
     def load(self, number_of_clients: int, dirichlet_alpha: float) -> tuple:
@@ -126,7 +135,8 @@ class CustomDataLoader:
             tuple: (list: Client data set with non-iid setting, DataLoader: Test set loader)
         """
         # 1. Client definition and matching classes
-        clients = [{'train': {'x': [], 'y': []}, 'test': {'x': [], 'y': []}} for _ in range(number_of_clients)]
+        clients = [{'train': {'x': [], 'y': []},
+                    'valid': {'x': [], 'y': []}} for _ in range(number_of_clients)]
 
         # 2. Categorization of dataset
         self.categories_train_X, self.categories_train_Y = self._categorize(self.train_X, self.train_Y)
