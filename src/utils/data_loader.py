@@ -1,14 +1,12 @@
 from .. import *
-from abc import ABC
 from torchvision.datasets import *
 from torchvision.transforms import *
-from torch.utils.data import Dataset, DataLoader
 
 import seaborn as sns
 
 
 class CustomDataLoader:
-    def __init__(self, train_data, test_data, log_path):
+    def __init__(self, train_data, test_data, log_path, transform=None):
         self.train_X = train_data.data
         self.train_Y = np.array(train_data.targets)
 
@@ -20,6 +18,8 @@ class CustomDataLoader:
 
         self.log_path = os.path.join(log_path, "client_meta")
         os.makedirs(self.log_path, exist_ok=True)
+
+        self.transform = transform
 
     def _data_sampling(self, dirichlet_alpha: float, num_of_clients: int, num_of_classes: int) -> pd.DataFrame:
         """
@@ -111,6 +111,12 @@ class CustomDataLoader:
 
         return categories_X, categories_Y
 
+    def _to_dataset(self, clients: list) -> list:
+        for client in clients:
+            client['train'] = DatasetWrapper(client['train'], transform=self.transform)
+            client['test'] = DatasetWrapper(client['test'], transform=self.transform)
+        return clients
+
     def load(self, number_of_clients: int, dirichlet_alpha: float) -> tuple:
         """
         Args
@@ -132,7 +138,7 @@ class CustomDataLoader:
 
         # 4. Data allocation
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
-
+        federated_dataset = self._to_dataset(federated_dataset)
         test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y}))
 
         return federated_dataset, test_loader
@@ -143,23 +149,17 @@ class FedMNIST(CustomDataLoader):
         train_data = MNIST(
             root="./data",
             train=True,
-            download=True,
-            transform=Compose([
-                ToTensor(),
-                Normalize((0.1307,), (0.3081,))
-            ])
+            download=True
         )
         test_data = MNIST(
             root="./data",
             train=False,
-            download=True,
-            transform=Compose([
+            download=True
+        )
+        CustomDataLoader.__init__(self, train_data, test_data, log_path, Compose([
                 ToTensor(),
                 Normalize((0.1307,), (0.3081,))
-            ])
-        )
-
-        CustomDataLoader.__init__(self, train_data, test_data, log_path)
+            ]))
 
 
 class FedCifar(CustomDataLoader):
@@ -167,62 +167,53 @@ class FedCifar(CustomDataLoader):
         if kwargs['mode'.lower()] == 'cifar-10':
             normalize = Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
                                   std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
-
             train_data = CIFAR10(
                 root="./data",
                 train=True,
-                download=True,
-                transform=Compose([
-                    ToTensor(),
-                    normalize
-                ])
+                download=True
             )
             test_data = CIFAR10(
                 root="./data",
                 train=False,
                 download=True,
-                transform=Compose([
-                    ToTensor(),
-                    normalize
-                ])
             )
+            CustomDataLoader.__init__(self, train_data, test_data, log_path, Compose([
+                ToTensor(),
+                normalize
+            ]))
+
         elif kwargs['mode'.lower()] == 'cifar-100':
-            normalize = transforms.Normalize(mean=[0.5070751592371323, 0.48654887331495095, 0.4409178433670343],
-                                             std=[0.2673342858792401, 0.2564384629170883, 0.27615047132568404])
+            normalize = Normalize(mean=[0.5070751592371323, 0.48654887331495095, 0.4409178433670343],
+                                  std=[0.2673342858792401, 0.2564384629170883, 0.27615047132568404])
             train_data = CIFAR100(
                 root="./data",
                 train=True,
-                download=True,
-                transform=Compose([
-                    transforms.RandomCrop(32, padding=4),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.RandomRotation(15),
-                    transforms.ToTensor(),
-                    normalize
-                ])
+                download=True
             )
             test_data = CIFAR100(
                 root="./data",
                 train=False,
-                download=True,
-                transform=Compose([
-                    transforms.ToTensor(),
-                    normalize
-                ])
+                download=True
             )
+            CustomDataLoader.__init__(self, train_data, test_data, log_path, Compose([
+                ToTensor(),
+                normalize
+            ]))
         else:
             raise ValueError("Invalid Parameter \'{}\'".format(kwargs['mode'.lower()]))
 
-        CustomDataLoader.__init__(self, train_data, test_data, log_path)
 
-
-class DatasetWrapper(Dataset, ABC):
-    def __init__(self, data):
+class DatasetWrapper(Dataset):
+    def __init__(self, data, transform=None):
         self.data_x = data['x']
         self.data_y = data['y']
+        self.transform = transform
 
     def __len__(self) -> int:
         return len(self.data_x)
 
-    def __getitem__(self, item) -> dict:
-        return {'x': self.data_x[item], 'y': self.data_y[item]}
+    def __getitem__(self, item) -> tuple:
+        x, y = self.data_x[item], self.data_y[item]
+        if self.transform:
+            x = self.transform(x)
+        return x, y
