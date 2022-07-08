@@ -3,10 +3,7 @@ import torch
 from src import *
 from src.model import *
 from src.clients import *
-from src.utils.data_loader import DataLoader
 from torch.nn import CrossEntropyLoss
-from collections import OrderedDict
-from torch.utils.tensorboard import SummaryWriter
 
 
 @ray.remote
@@ -14,7 +11,7 @@ class Client:
     def __init__(self,
                  client_name: str,
                  dataset_name: str,
-                 data: dict,
+                 data: Optional[dict],
                  train_settings: dict,
                  log_path: str):
         # Client Meta setting
@@ -32,9 +29,10 @@ class Client:
         # Training settings
         self.training_settings = train_settings
         self.global_iter = 0
+        self.step_counter = 0
 
         # Model
-        self.model: FederatedModel = model_call(train_settings['model'], num_of_classes[dataset_name])
+        self.model: FederatedModel = model_call(train_settings['model'], NUMBER_OF_CLASSES[dataset_name])
 
         # Optimizer
         self.optimizer = call_optimizer(train_settings['optim'])
@@ -56,18 +54,12 @@ class Client:
 
     def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
         self.model.set_parameters(state_dict)
-        # params_dict = zip(self.model.state_dict().keys(), parameters)
-        # state_dict = OrderedDict({k: v.clone().detach() for k, v in params_dict})
-        # self.model.load_state_dict(state_dict, strict=True)
 
     def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, list]:
-        if ordict:
-            return OrderedDict({k: val.clone().detach().cpu() for k, val in self.model.state_dict().items()})
-        else:
-            return [val.clone().detach().cpu() for _, val in self.model.state_dict().items()]
+        return self.model.get_parameters(ordict)
 
     def save_model(self):
-        save_path = os.path.join(self.summary_path, "client_model")
+        save_path = os.path.join(self.summary_path, "model")
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         save_path = os.path.join(save_path, "global_iter_{}.pt".format(self.global_iter))
@@ -111,8 +103,8 @@ class Client:
         # print("Test ACC Before training - {}: {:.2f}".format(client.name, test_acc))
 
         # INFO: Local training logic
-        step_counter = 0
-        for epoch in range(self.training_settings['local_epochs']):
+        # step_counter = 0
+        for _ in range(self.training_settings['local_epochs']):
             training_loss = 0
             _summary_counter = 0
 
@@ -135,15 +127,16 @@ class Client:
                 # Summary Loss
                 training_loss += loss.item()
 
-                step_counter += 1
+                # step_counter += 1
+                self.step_counter += 1
                 _summary_counter += 1
                 if _summary_counter % self.summary_count == 0:
                     training_acc = self.compute_accuracy()
 
-                    self.summary_writer.add_scalar('{}/training_loss'.format(self.global_iter),
-                                                   training_loss / _summary_counter, step_counter)
-                    self.summary_writer.add_scalar('{}/training_acc'.format(self.global_iter),
-                                                   training_acc, step_counter)
+                    self.summary_writer.add_scalar('training_loss',
+                                                   training_loss / _summary_counter, self.step_counter)
+                    self.summary_writer.add_scalar('training_acc',
+                                                   training_acc, self.step_counter)
 
                     _summary_counter = 0
 
@@ -158,9 +151,11 @@ class Client:
 
     def compute_accuracy(self) -> float:
         """
+        Compute the accuracy using its test dataloader.
         Returns:
             (float) training_acc: Training accuracy of client's test data.
         """
+
         correct = []
         total = []
         with torch.no_grad():

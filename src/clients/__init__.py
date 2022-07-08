@@ -1,12 +1,8 @@
 import wandb
 import ray
 from torch.optim import *
-
-num_of_classes = {
-    'cifar-10': 10,
-    'cifar-100': 100,
-    'mnist': 10
-}
+from torch.utils.tensorboard import SummaryWriter
+from collections import OrderedDict
 
 
 def call_optimizer(optimizer_name: str):
@@ -21,8 +17,16 @@ def call_optimizer(optimizer_name: str):
     return opt
 
 
+NUMBER_OF_CLASSES = {
+        'cifar-10': 10,
+        'cifar-100': 100,
+        'mnist': 10
+}
+
 __all__ = [
     'call_optimizer',
-    'num_of_classes',
-    'ray'
+    'ray',
+    "SummaryWriter",
+    'OrderedDict',
+    'NUMBER_OF_CLASSES'
 ]

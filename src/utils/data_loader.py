@@ -149,7 +149,7 @@ class CustomDataLoader:
         # 4. Data allocation
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
         federated_dataset = self._to_dataset(federated_dataset)
-        test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y}))
+        test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y}, transform=self.transform))
 
         return federated_dataset, test_loader
 
