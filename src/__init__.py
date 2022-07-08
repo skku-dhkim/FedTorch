@@ -1,19 +1,22 @@
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.parameter import Parameter
-from typing import Union, Optional, Tuple
+from typing import Union, Optional, Tuple, Dict, Any
+from collections import OrderedDict
 
-num_of_classes = {
-    'cifar-10': 10,
-    'cifar-100': 100,
-    'mnist': 10
-}
+import os
+import numpy as np
+import pandas as pd
+import random
 
 __all__ = [
-    'num_of_classes',
     'Dataset',
     'DataLoader',
     'Parameter',
-    'Union', 'Optional', 'Tuple'
-
+    'Union', 'Optional', 'Tuple', 'Dict', 'Any',
+    'OrderedDict',
+    'os',
+    'np',
+    'pd',
+    'random'
 ]
 
