@@ -3,14 +3,14 @@ import copy
 import os
 
 from torch.utils.tensorboard import SummaryWriter
-from src.clients.fed_clients import FedClient
+from src.clients.fed_clients import Client
 from src.model import *
 from torch.utils.data import DataLoader
 from typing import Optional
 
-
+# TODO: This class will be removed.
 class Trainer:
-    def __init__(self, log_path: str, model: Optional[FederatedModel], test_loader: Optional[DataLoader] = None):
+    def __init__(self, log_path: str):
         self.summary_path = os.path.join(log_path, "tensorboard")
         # self.model = copy.deepcopy(model)
         # self.test_loader = test_loader
@@ -18,7 +18,7 @@ class Trainer:
     # def set_model(self, m):
     #     self.model = copy.deepcopy(m)
 
-    def train(self, client: FedClient, device: torch.device) -> FedClient:
+    def train(self, client: Client, device: torch.device) -> Client:
         # Tensorboard Summary writer
         writer = SummaryWriter(os.path.join(self.summary_path, "client{}".format(client.name)))
 
@@ -42,7 +42,7 @@ class Trainer:
         # print("Test ACC Before training - {}: {:.2f}".format(client.name, test_acc))
 
         # 3. Training logic
-        client.model.requires_grad_(True)
+        # client.model.requires_grad_(True)
         for epoch in range(client.training_settings['local_epochs']):
             training_loss = 0
             training_acc = 0

@@ -16,6 +16,7 @@ from sklearn.metrics import confusion_matrix
 
 # warnings.filterwarnings("ignore")
 
+# TODO: This class will be removed.
 
 # @ray.remote(num_cpus=1)
 class Aggregator:
@@ -49,66 +50,66 @@ class Aggregator:
         self.global_model.load_state_dict(empty_model)
         self.global_iter += 1
 
-    def fedConCat(self, collected_weights, feature_map: bool):
-        from src.model.custom_cnn import CustomCNN
+    # def fedConCat(self, collected_weights, feature_map: bool):
+    #     from src.model.custom_cnn import CustomCNN
+    #
+    #     def _findWord(word, txt):
+    #         return re.search("\A{}".format(word), txt)
+    #
+    #     if feature_map:
+    #         concat_model = CustomCNN(num_of_clients=len(collected_weights), b_global=True,
+    #                                  n_of_clients=len(collected_weights))
+    #         empty_model = concat_model.make_empty_weights()
+    #         last_layer_name = list(concat_model.features.state_dict().keys())[-1]
+    #         for k, v in concat_model.state_dict().items():
+    #             if _findWord("fc", k) is not None:
+    #                 empty_model[k] = v
+    #             elif k != "features." + last_layer_name:
+    #                 for client in collected_weights:
+    #                     empty_model[k] += self.lr * (client[k] / len(collected_weights))
+    #             else:
+    #                 _w = []
+    #                 for client in collected_weights:
+    #                     _w.append(client[k])
+    #                 empty_model[k] = torch.cat(_w)
+    #         self.global_model = concat_model
+    #         self.global_model.set_weights(empty_model)
+    #         self.global_model.features.requires_grad_(False)
+    #         self.global_model.fc.requires_grad_(True)
+    #
+    #     else:
+    #         empty_model = self.global_model.make_empty_weights()
+    #
+    #         for k, v in self.global_model.state_dict().items():
+    #             if _findWord("fc", k) is not None:
+    #                 for client in collected_weights:
+    #                     empty_model[k] += self.lr * (client[k] / len(collected_weights))
+    #             else:
+    #                 empty_model[k] = collected_weights[0][k]
+    #
+    #         self.global_model.set_weights(empty_model)
+    #         self.global_model.features.requires_grad_(False)
+    #         self.global_model.fc.requires_grad_(True)
+    #
+    #     self.global_iter += 1
 
-        def _findWord(word, txt):
-            return re.search("\A{}".format(word), txt)
-
-        if feature_map:
-            concat_model = CustomCNN(num_of_clients=len(collected_weights), b_global=True,
-                                     n_of_clients=len(collected_weights))
-            empty_model = concat_model.make_empty_weights()
-            last_layer_name = list(concat_model.features.state_dict().keys())[-1]
-            for k, v in concat_model.state_dict().items():
-                if _findWord("fc", k) is not None:
-                    empty_model[k] = v
-                elif k != "features." + last_layer_name:
-                    for client in collected_weights:
-                        empty_model[k] += self.lr * (client[k] / len(collected_weights))
-                else:
-                    _w = []
-                    for client in collected_weights:
-                        _w.append(client[k])
-                    empty_model[k] = torch.cat(_w)
-            self.global_model = concat_model
-            self.global_model.set_weights(empty_model)
-            self.global_model.features.requires_grad_(False)
-            self.global_model.fc.requires_grad_(True)
-
-        else:
-            empty_model = self.global_model.make_empty_weights()
-
-            for k, v in self.global_model.state_dict().items():
-                if _findWord("fc", k) is not None:
-                    for client in collected_weights:
-                        empty_model[k] += self.lr * (client[k] / len(collected_weights))
-                else:
-                    empty_model[k] = collected_weights[0][k]
-
-            self.global_model.set_weights(empty_model)
-            self.global_model.features.requires_grad_(False)
-            self.global_model.fc.requires_grad_(True)
-
-        self.global_iter += 1
-
-    def fedCat(self, collected_weights, classifier: bool):
-        from src.model.custom_cnn import ConcatCNN
-
-        empty_model = {}
-        if not classifier:
-            self.global_model = ConcatCNN(num_of_clients=10, num_classes=10)
-            weights_grop = []
-            for weights in collected_weights:
-                weights_grop.append(weights.features)
-            self.global_model.set_weights(weights_grop)
-        else:
-            for k, v in self.global_model.fc.state_dict().items():
-                for weights in collected_weights:
-                    if k not in empty_model.keys():
-                        empty_model[k] = self.lr * (weights[k] / len(collected_weights))
-                    else:
-                        empty_model[k] += self.lr * (weights[k] / len(collected_weights))
+    # def fedCat(self, collected_weights, classifier: bool):
+    #     from src.model.custom_cnn import ConcatCNN
+    #
+    #     empty_model = {}
+    #     if not classifier:
+    #         self.global_model = ConcatCNN(num_of_clients=10, num_classes=10)
+    #         weights_grop = []
+    #         for weights in collected_weights:
+    #             weights_grop.append(weights.features)
+    #         self.global_model.set_weights(weights_grop)
+    #     else:
+    #         for k, v in self.global_model.fc.state_dict().items():
+    #             for weights in collected_weights:
+    #                 if k not in empty_model.keys():
+    #                     empty_model[k] = self.lr * (weights[k] / len(collected_weights))
+    #                 else:
+    #                     empty_model[k] += self.lr * (weights[k] / len(collected_weights))
 
 
 

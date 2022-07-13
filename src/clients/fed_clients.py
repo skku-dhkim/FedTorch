@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from src import *
@@ -52,11 +53,16 @@ class Client:
         self.save_data()
         self.save_hyper_parameters()
 
+        self.cos_sim = torch.nn.CosineSimilarity(dim=0).to(self.device)
+
     def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
         self.model.set_parameters(state_dict)
 
-    def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, list]:
-        return self.model.get_parameters(ordict)
+    def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, Any]:
+        if ordict:
+            return OrderedDict({k: v.clone().detach().cpu() for k, v in self.model.state_dict().items()})
+        else:
+            return [val.clone().detach().cpu() for _, val in self.model.state_dict().items()]
 
     def save_model(self):
         save_path = os.path.join(self.summary_path, "model")
@@ -102,6 +108,7 @@ class Client:
         # test_acc = self.compute_accuracy(data_loader=self.test_loader)
         # print("Test ACC Before training - {}: {:.2f}".format(client.name, test_acc))
 
+        original_state = self.get_parameters()
         # INFO: Local training logic
         # step_counter = 0
         for _ in range(self.training_settings['local_epochs']):
@@ -146,8 +153,18 @@ class Client:
         # print("Train ACC After training - {}: {:.2f}".format(client.name, train_acc))
         # test_acc = self.compute_accuracy(data_loader=self.test_loader)
         # print("Test ACC After training - {}: {:.2f}".format(client.name, test_acc))
+        self.cal_cos_similarity(original_state, self.get_parameters())
+
         self.save_model()
         self.global_iter += 1
+
+    def cal_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict) -> Optional[OrderedDict]:
+        result = OrderedDict()
+        for k in current_state.keys():
+            score = self.cos_sim(torch.flatten(original_state[k]), torch.flatten(current_state[k]))
+            result[k] = score
+            self.summary_writer.add_scalar("COS_similarity/{}".format(k), score, self.global_iter)
+        return result
 
     def compute_accuracy(self) -> float:
         """

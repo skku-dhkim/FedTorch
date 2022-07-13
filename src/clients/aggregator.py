@@ -43,6 +43,8 @@ class Aggregator:
         self.test_accuracy = self.compute_accuracy()
         self.summary_writer.add_scalar('global_test_acc', self.test_accuracy, self.global_iter)
 
+        self.cos_sim = torch.nn.CosineSimilarity(dim=0).to(self.device)
+
     @property
     def collected_weights(self):
         return self.__collected_weights
@@ -55,7 +57,10 @@ class Aggregator:
         self.model.set_parameters(state_dict)
 
     def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, list]:
-        return self.get_parameters(ordict)
+        if ordict:
+            return OrderedDict({k: v.clone().detach().cpu() for k, v in self.model.state_dict().items()})
+        else:
+            return [val.clone().detach().cpu() for _, val in self.model.state_dict().items()]
 
     def save_model(self):
         save_path = os.path.join(self.summary_path, "model")
@@ -94,6 +99,7 @@ class Aggregator:
     def fedAvg(self):
         total_len = 0
         empty_model = OrderedDict()
+        original_model = self.get_parameters()
         for _, client in self.collected_weights.items():
             total_len += client['data_len']
 
@@ -109,5 +115,16 @@ class Aggregator:
         self.global_iter += 1
 
         self.test_accuracy = self.compute_accuracy()
+
+        current_model = self.get_parameters()
+        self.calc_cos_similarity(original_model, current_model)
         self.summary_writer.add_scalar('global_test_acc', self.test_accuracy, self.global_iter)
         self.save_model()
+
+    def calc_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict) -> Optional[OrderedDict]:
+        result = OrderedDict()
+        for k in current_state.keys():
+            score = self.cos_sim(torch.flatten(original_state[k]), torch.flatten(current_state[k]))
+            result[k] = score
+            self.summary_writer.add_scalar("COS_similarity/{}".format(k), score, self.global_iter)
+        return result

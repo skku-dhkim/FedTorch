@@ -1,5 +1,5 @@
-from .custom_cnn import CustomCNN
 from src.model.skeleton import FederatedModel
+from .custom_cnn import CustomCNN
 from torchvision.models import *
 from torch.nn import *
 
@@ -23,8 +23,8 @@ def model_call(model_name: str, num_of_classes: int):
 
 
 __all__ = [
-    'CustomCNN',
     'FederatedModel',
+    'CustomCNN',
     'model_call',
     'F',
 ]
