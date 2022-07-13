@@ -95,11 +95,11 @@ def main():
         ######################################################################################################
         clients = {}
         for _id, data in enumerate(fed_dataset):
-            clients[str(_id)] = Client.options().remote(str(_id),
-                                                        args.dataset.lower(),
-                                                        data,
-                                                        train_settings,
-                                                        log_path=log_path)
+            clients[str(_id)] = Client.options(num_cpus=args.ray_core, num_gpus=args.gpu_frac).remote(str(_id),
+                                                                                                      args.dataset.lower(),
+                                                                                                      data,
+                                                                                                      train_settings,
+                                                                                                      log_path=log_path)
         summary_logger.info("Client initializing time: {:.2f}".format(time.time() - start))
         system_logger.info("Client container created successfully.")
         ######################################################################################################

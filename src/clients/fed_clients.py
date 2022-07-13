@@ -56,7 +56,8 @@ class Client:
         self.cos_sim = torch.nn.CosineSimilarity(dim=0).to(self.device)
 
     def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
-        self.model.set_parameters(state_dict)
+        self.model.load_state_dict(state_dict, strict=True)
+        # self.model.set_parameters(state_dict)
 
     def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, Any]:
         if ordict:
@@ -94,6 +95,7 @@ class Client:
         return len(self.train)
 
     async def train(self) -> None:
+        self.model.to(self.device)
         optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
                                lr=self.training_settings['local_lr'],
                                momentum=self.training_settings['momentum'],
@@ -120,12 +122,15 @@ class Client:
                 inputs = x
                 labels = y
 
-                inputs.to(self.device)
-                labels.to(self.device)
+                inputs = inputs.to(self.device)
+                labels = labels.to(self.device)
+
+                self.model.train()
+                self.model.to(self.device)
 
                 optim.zero_grad()
 
-                outputs = self.model(inputs).to(self.device)
+                outputs = self.model(inputs)
                 loss = loss_fn(outputs, labels)
 
                 loss.backward()
@@ -161,7 +166,8 @@ class Client:
     def cal_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict) -> Optional[OrderedDict]:
         result = OrderedDict()
         for k in current_state.keys():
-            score = self.cos_sim(torch.flatten(original_state[k]), torch.flatten(current_state[k]))
+            score = self.cos_sim(torch.flatten(original_state[k].to(torch.float32)),
+                                 torch.flatten(current_state[k].to(torch.float32)))
             result[k] = score
             self.summary_writer.add_scalar("COS_similarity/{}".format(k), score, self.global_iter)
         return result
@@ -172,6 +178,9 @@ class Client:
         Returns:
             (float) training_acc: Training accuracy of client's test data.
         """
+        # device = "cpu"
+        self.model.to(self.device)
+        self.model.eval()
 
         correct = []
         total = []
@@ -179,7 +188,7 @@ class Client:
             for x, y in self.test_loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
-                outputs = self.model(x).to(self.device)
+                outputs = self.model(x)
                 y_max_scores, y_max_idx = outputs.max(dim=1)
                 correct.append((y == y_max_idx).sum().item())
                 total.append(len(x))

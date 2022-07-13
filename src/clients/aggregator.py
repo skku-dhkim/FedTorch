@@ -32,6 +32,8 @@ class Aggregator:
 
         # Device setting
         self.device = "cuda" if train_settings['use_gpu'] is True else "cpu"
+        # self.device = "cpu"
+        self.model.to(self.device)
 
         # Federated learning method settings
         self.__collected_weights: Optional[dict] = None
@@ -54,7 +56,8 @@ class Aggregator:
         self.__collected_weights = value
 
     def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
-        self.model.set_parameters(state_dict)
+        self.model.load_state_dict(state_dict, strict=True)
+        # self.model.set_parameters(state_dict)
 
     def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, list]:
         if ordict:
@@ -85,11 +88,12 @@ class Aggregator:
         """
         correct = []
         total = []
+        self.model.eval()
         with torch.no_grad():
             for x, y in self.test_loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
-                outputs = self.model(x).to(self.device)
+                outputs = self.model(x)
                 y_max_scores, y_max_idx = outputs.max(dim=1)
                 correct.append((y == y_max_idx).sum().item())
                 total.append(len(x))
@@ -111,7 +115,7 @@ class Aggregator:
                     empty_model[k] += client['weights'][k] * (client['data_len']/total_len) * self.lr
 
         # Global model updates
-        self.model.set_parameters(empty_model)
+        self.set_parameters(empty_model)
         self.global_iter += 1
 
         self.test_accuracy = self.compute_accuracy()
@@ -124,7 +128,8 @@ class Aggregator:
     def calc_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict) -> Optional[OrderedDict]:
         result = OrderedDict()
         for k in current_state.keys():
-            score = self.cos_sim(torch.flatten(original_state[k]), torch.flatten(current_state[k]))
+            score = self.cos_sim(torch.flatten(original_state[k].to(torch.float32)),
+                                 torch.flatten(current_state[k].to(torch.float32)))
             result[k] = score
             self.summary_writer.add_scalar("COS_similarity/{}".format(k), score, self.global_iter)
         return result
