@@ -17,6 +17,7 @@ class Aggregator:
 
         # Data setting
         self.test_loader: DataLoader = test_data
+        #self
 
         # Training settings
         self.training_settings = train_settings
@@ -117,6 +118,8 @@ class Aggregator:
         self.global_iter += 1
 
         self.test_accuracy = self.compute_accuracy()
+
+        # Calculate Representations
 
         current_model = self.get_parameters()
         self.calc_cos_similarity(original_model, current_model)

@@ -46,7 +46,7 @@ class Client:
         self.summary_count = train_settings['summary_count']
 
         # Device setting
-        self.device = "cuda" if train_settings['use_gpu'] is True else "cpu"
+        self.device = "cuda:0" if train_settings['use_gpu'] is True else "cpu"
 
         # Save information
         self.save_data()
