@@ -52,7 +52,7 @@ class Client:
         self.save_data()
         self.save_hyper_parameters()
 
-        self.cos_sim = torch.nn.CosineSimilarity(dim=0).to(self.device)
+        self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)
 
     def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
         self.model.load_state_dict(state_dict, strict=True)

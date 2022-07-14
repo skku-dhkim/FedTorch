@@ -44,7 +44,7 @@ class Aggregator:
         self.test_accuracy = self.compute_accuracy()
         self.summary_writer.add_scalar('global_test_acc', self.test_accuracy, self.global_iter)
 
-        self.cos_sim = torch.nn.CosineSimilarity(dim=0).to(self.device)
+        self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)
 
     @property
     def collected_weights(self):
