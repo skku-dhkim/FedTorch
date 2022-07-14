@@ -7,6 +7,7 @@ from src.train import functions as F
 from torch import cuda
 from distutils.util import strtobool
 from tqdm import tqdm
+from datetime import datetime
 
 import argparse
 import time
@@ -95,11 +96,18 @@ def main():
         ######################################################################################################
         clients = {}
         for _id, data in enumerate(fed_dataset):
-            clients[str(_id)] = Client.options(num_cpus=args.ray_core, num_gpus=args.gpu_frac).remote(str(_id),
-                                                                                                      args.dataset.lower(),
-                                                                                                      data,
-                                                                                                      train_settings,
-                                                                                                      log_path=log_path)
+            if args.gpu:
+                clients[str(_id)] = Client.options(num_gpus=args.gpu_frac).remote(str(_id),
+                                                                                  args.dataset.lower(),
+                                                                                  data,
+                                                                                  train_settings,
+                                                                                  log_path=log_path)
+            else:
+                clients[str(_id)] = Client.options().remote(str(_id),
+                                                            args.dataset.lower(),
+                                                            data,
+                                                            train_settings,
+                                                            log_path=log_path)
         summary_logger.info("Client initializing time: {:.2f}".format(time.time() - start))
         system_logger.info("Client container created successfully.")
         ######################################################################################################
@@ -209,7 +217,7 @@ if __name__ == '__main__':
     summary_logger = get_file_logger("{}".format(args.exp_name),
                                      os.path.join(log_path, "experiment_summary.log"), args.flog)
     system_logger = get_file_logger("system_logger[{}]".format(args.exp_name),
-                                    os.path.join("./logs", "program.log"), args.flog)
+                                    os.path.join("./logs", "program_log_{}.log".format(datetime.today())), args.flog)
 
     # INFO: Exceptions
     system_logger.info("Program start with experiment name: {}".format(experiment_name))

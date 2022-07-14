@@ -32,7 +32,6 @@ class Aggregator:
 
         # Device setting
         self.device = "cuda" if train_settings['use_gpu'] is True else "cpu"
-        # self.device = "cpu"
         self.model.to(self.device)
 
         # Federated learning method settings
@@ -57,7 +56,6 @@ class Aggregator:
 
     def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
         self.model.load_state_dict(state_dict, strict=True)
-        # self.model.set_parameters(state_dict)
 
     def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, list]:
         if ordict:

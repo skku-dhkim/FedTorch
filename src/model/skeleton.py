@@ -3,6 +3,7 @@ import torch.nn as nn
 from src import *
 
 
+# TODO: This abstract class doesn't need anymore. Deprecate future.
 class FederatedModel(nn.Module):
     def make_empty_weights(self):
         return {k: v.cpu()-v.cpu() for k, v in self.state_dict().items()}
