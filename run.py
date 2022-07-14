@@ -217,7 +217,7 @@ if __name__ == '__main__':
     summary_logger = get_file_logger("{}".format(args.exp_name),
                                      os.path.join(log_path, "experiment_summary.log"), args.flog)
     system_logger = get_file_logger("system_logger[{}]".format(args.exp_name),
-                                    os.path.join("./logs", "program_log_{}.log".format(datetime.today())), args.flog)
+                                    os.path.join("./logs", "program_log_{}.log".format(datetime.today().date())), args.flog)
 
     # INFO: Exceptions
     system_logger.info("Program start with experiment name: {}".format(experiment_name))

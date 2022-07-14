@@ -1,6 +1,7 @@
 from .. import *
 from torchvision.datasets import *
 from torchvision.transforms import *
+from torch.utils.tensorboard import SummaryWriter
 
 import seaborn as sns
 
@@ -45,6 +46,10 @@ class CustomDataLoader:
 
         # Save to Image
         figure.savefig(os.path.join(self.log_path, 'client_meta.png'), format='png')
+
+        # Tensorboard log
+        self.summary_writer = SummaryWriter(self.log_path)
+        self.summary_writer.add_figure("client_meta", figure)
 
         return c_dist.transpose()
 
