@@ -1,12 +1,11 @@
-from .. import *
+from ... import *
 from torchvision.datasets import *
 from torchvision.transforms import *
 from torch.utils.tensorboard import SummaryWriter
 
 import seaborn as sns
 
-
-class CustomDataLoader:
+class CustomDataLoader_SSK:
     def __init__(self, train_data, test_data, log_path, transform=None):
         self.train_X = train_data.data
         self.train_Y = np.array(train_data.targets)
@@ -127,7 +126,7 @@ class CustomDataLoader:
             valid_y = client['train']['y'][-indices:]
 
             client['train'] = DatasetWrapper({'x': train_x, 'y': train_y}, transform=self.transform)
-            for idx in len(valid_x):
+            for idx in range(len(valid_x)):
                 self.valid_set['x'].append(valid_x[idx])
                 self.valid_set['y'].append(valid_y[idx])
             client['valid'] = DatasetWrapper({'x': valid_x, 'y': valid_y}, transform=self.transform)
@@ -143,7 +142,7 @@ class CustomDataLoader:
             tuple: (list: Client data set with non-iid setting, DataLoader: Test set loader)
         """
         # 1. Client definition and matching classes and collect validation set
-        clients = [{'train': {'x': [], 'y': []}} for _ in range(number_of_clients)]
+        clients = [{'train': {'x': [], 'y': []}, 'valid': {'x': [], 'y': []}} for _ in range(number_of_clients)]
         self.valid_set = {'x': [], 'y': []}
 
         # 2. Categorization of dataset
@@ -163,7 +162,7 @@ class CustomDataLoader:
         return federated_dataset, valid_loader, test_loader
 
 
-class FedMNIST(CustomDataLoader):
+class FedMNIST(CustomDataLoader_SSK):
     def __init__(self, log_path):
         train_data = MNIST(
             root="./data",
@@ -181,7 +180,7 @@ class FedMNIST(CustomDataLoader):
             ]))
 
 
-class FedCifar(CustomDataLoader):
+class FedCifar(CustomDataLoader_SSK):
     def __init__(self, log_path, **kwargs):
         if kwargs['mode'.lower()] == 'cifar-10':
             normalize = Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
@@ -196,7 +195,7 @@ class FedCifar(CustomDataLoader):
                 train=False,
                 download=True,
             )
-            CustomDataLoader.__init__(self, train_data, test_data, log_path, Compose([
+            CustomDataLoader_SSK.__init__(self, train_data, test_data, log_path, Compose([
                 ToTensor(),
                 normalize
             ]))
@@ -214,7 +213,7 @@ class FedCifar(CustomDataLoader):
                 train=False,
                 download=True
             )
-            CustomDataLoader.__init__(self, train_data, test_data, log_path, Compose([
+            CustomDataLoader_SSK.__init__(self, train_data, test_data, log_path, Compose([
                 ToTensor(),
                 normalize
             ]))

@@ -1,5 +1,5 @@
 from src.model.skeleton import FederatedModel
-from .custom_cnn import CustomCNN
+from .custom_cnn import CustomCNN, ModelFedCon
 from torchvision.models import *
 from torch.nn import *
 
@@ -9,6 +9,8 @@ import torch.nn.functional as F
 def model_call(model_name: str, num_of_classes: int):
     if model_name.lower() == 'custom_cnn':
         return CustomCNN(num_of_classes=num_of_classes)
+    if model_name.lower() == 'moon_cnn':
+        return ModelFedCon(10, n_classes=num_of_classes)
     if model_name.lower() == "resnet-50":
         _model = resnet50()
         fc = Sequential(
