@@ -130,16 +130,16 @@ class Client:
 
                 # Summary Loss
                 training_loss += loss.item()
+                
+                self.step_counter += 1
                 _summary_counter += 1
 
-            self.step_counter += 1
-            training_acc = self.compute_accuracy()
+                if _summary_counter % self.summary_count ==0:
+                    training_acc = self.compute_accuracy()
 
-            self.summary_writer.add_scalar('training_loss',
-                                                   training_loss / _summary_counter, self.step_counter)
-            self.summary_writer.add_scalar('training_acc',
-                                                   training_acc, self.step_counter)
-
+                    self.summary_writer.add_scalar('training_loss', training_loss/_summary_counter, self.step_counter)
+                    self.summary_writer.add_scalar('training_acc', training_acc, self.step_counter)
+                    _summary_counter = 0
 
         #representation similarity with before global rep
         self.calc_rep_similarity()
