@@ -5,7 +5,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 import seaborn as sns
 
-
 class CustomDataLoader:
     def __init__(self, train_data, test_data, log_path, transform=None):
         self.train_X = train_data.data
@@ -127,6 +126,9 @@ class CustomDataLoader:
             valid_y = client['train']['y'][-indices:]
 
             client['train'] = DatasetWrapper({'x': train_x, 'y': train_y}, transform=self.transform)
+            for idx in range(len(valid_x)):
+                self.valid_set['x'].append(valid_x[idx])
+                self.valid_set['y'].append(valid_y[idx])
             client['valid'] = DatasetWrapper({'x': valid_x, 'y': valid_y}, transform=self.transform)
             # client['test'] = DatasetWrapper(client['test'], transform=self.transform)
         return clients
@@ -139,9 +141,9 @@ class CustomDataLoader:
         :return:
             tuple: (list: Client data set with non-iid setting, DataLoader: Test set loader)
         """
-        # 1. Client definition and matching classes
-        clients = [{'train': {'x': [], 'y': []},
-                    'valid': {'x': [], 'y': []}} for _ in range(number_of_clients)]
+        # 1. Client definition and matching classes and collect validation set
+        clients = [{'train': {'x': [], 'y': []}, 'valid': {'x': [], 'y': []}} for _ in range(number_of_clients)]
+        self.valid_set = {'x': [], 'y': []}
 
         # 2. Categorization of dataset
         self.categories_train_X, self.categories_train_Y = self._categorize(self.train_X, self.train_Y)
@@ -154,9 +156,10 @@ class CustomDataLoader:
         # 4. Data allocation
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
         federated_dataset = self._to_dataset(federated_dataset)
-        test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y}, transform=self.transform))
+        valid_loader = DataLoader(DatasetWrapper(self.valid_set, transform=self.transform), batch_size=16)
+        test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y}, transform=self.transform), batch_size=16)
 
-        return federated_dataset, test_loader
+        return federated_dataset, valid_loader, test_loader
 
 
 class FedMNIST(CustomDataLoader):

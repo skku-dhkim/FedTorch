@@ -12,6 +12,7 @@ class Client:
                  client_name: str,
                  dataset_name: str,
                  data: Optional[dict],
+                 valid_data: DataLoader,
                  train_settings: dict,
                  log_path: str):
         # Client Meta setting
@@ -21,10 +22,10 @@ class Client:
         self.train = data['train']
         self.train_loader = DataLoader(self.train,
                                        batch_size=train_settings['batch_size'], shuffle=True)
-
         self.test = data['valid']
         self.test_loader = DataLoader(self.test,
-                                      batch_size=train_settings['batch_size'], shuffle=False)
+                                       batch_size=train_settings['batch_size'], shuffle=False)       
+        self.valid_loader = valid_data
 
         # Training settings
         self.training_settings = train_settings
@@ -46,7 +47,7 @@ class Client:
         self.summary_count = train_settings['summary_count']
 
         # Device setting
-        self.device = "cuda" if train_settings['use_gpu'] is True else "cpu"
+        self.device = "cuda:0" if train_settings['use_gpu'] is True else "cpu"
 
         # Save information
         self.save_data()
@@ -102,6 +103,7 @@ class Client:
         loss_fn = torch.nn.CrossEntropyLoss().to(self.device)
 
         original_state = self.get_parameters()
+        self.original_rep = self.compute_representations()
         # INFO: Local training logic
         for _ in range(self.training_settings['local_epochs']):
             training_loss = 0
@@ -128,19 +130,20 @@ class Client:
 
                 # Summary Loss
                 training_loss += loss.item()
-
-                self.step_counter += 1
                 _summary_counter += 1
-                if _summary_counter % self.summary_count == 0:
-                    training_acc = self.compute_accuracy()
 
-                    self.summary_writer.add_scalar('training_loss',
+            self.step_counter += 1
+            training_acc = self.compute_accuracy()
+
+            self.summary_writer.add_scalar('training_loss',
                                                    training_loss / _summary_counter, self.step_counter)
-                    self.summary_writer.add_scalar('training_acc',
+            self.summary_writer.add_scalar('training_acc',
                                                    training_acc, self.step_counter)
 
-                    _summary_counter = 0
 
+        #representation similarity with before global rep
+        self.calc_rep_similarity()
+        
         self.cal_cos_similarity(original_state, self.get_parameters())
 
         self.save_model()
@@ -176,3 +179,37 @@ class Client:
                 total.append(len(x))
             training_acc = sum(correct) / sum(total)
         return training_acc
+
+    def compute_representations(self) -> float:
+        """
+        Returns:
+            (float) training_acc: Training accuracy of client's test data.
+        """
+        representations = {}
+        rep = torch.tensor([]).to(self.device)
+        ##### HELPER FUNCTION FOR FEATURE EXTRACTION
+        def get_representations(name):
+            def hook(model, input, output):
+                representations[name] = output.detach()
+            return hook
+
+        #### REGISTER HOOK
+        ##MOON
+        self.model.features.register_forward_hook(get_representations('rep'))
+
+        self.model.eval()
+        with torch.no_grad():
+            for x, y in self.valid_loader:
+                x = x.to(self.device)
+                y = y.to(self.device)
+                outputs = self.model(x)
+                rep = torch.cat([rep, representations['rep'].reshape((x.shape[0], -1))], dim=0)
+        return rep
+    
+
+    def calc_rep_similarity(self) -> Optional[OrderedDict]:
+        current_rep = self.compute_representations()
+        rd = self.cos_sim(self.original_rep, current_rep).cpu()
+        score = torch.mean(rd)
+        self.summary_writer.add_scalar("representations_similarity", score, self.global_iter)
+        return score
