@@ -1,0 +1,162 @@
+2022-07-18 12:13:07,088,088 gr50_le5_lr0.01_sgd[451494] INFO 
+	*************** Client Settings ***************
+	 Number of clients: 10
+	 Dirichlet alpha: 0.5
+	 Dataset: Cifar-10
+	*************** Training Hyper-parameters ***************
+	 Batch size: 64
+	 Optimizer: SGD
+	 Momentum: 0.0
+	 Global Learning rate: 1.0
+	 Local Learning rate: 0.01
+	 Local epochs: 50
+	 Global iteration: 50
+	*************** Dataset and Models ***************
+	 Dataset: Cifar-10
+	 Model: Custom_cnn
+	*************** Device Settings ***************
+	 Core per Ray: 1
+	 Number of Processes: 60
+	 GPU Flag: True
+	 GPU Fraction: 0.1
+2022-07-18 12:13:23,947,947 gr50_le5_lr0.01_sgd[451494] INFO Data preprocessing time: 16.86
+2022-07-18 12:13:26,133,133 gr50_le5_lr0.01_sgd[451494] INFO Client initializing time: 2.19
+2022-07-18 12:13:31,396,396 gr50_le5_lr0.01_sgd[451494] INFO Aggregator initializing time: 5.26
+2022-07-18 12:15:34,443,443 gr50_le5_lr0.01_sgd[451494] INFO Global Running time: 0::123.05
+2022-07-18 12:15:34,444,444 gr50_le5_lr0.01_sgd[451494] INFO Test Accuracy: 0.2728
+2022-07-18 12:17:28,785,785 gr50_le5_lr0.01_sgd[451494] INFO Global Running time: 1::114.34
+2022-07-18 12:17:28,785,785 gr50_le5_lr0.01_sgd[451494] INFO Test Accuracy: 0.4837
+2022-07-18 12:19:23,226,226 gr50_le5_lr0.01_sgd[451494] INFO Global Running time: 2::114.44
+2022-07-18 12:19:23,226,226 gr50_le5_lr0.01_sgd[451494] INFO Test Accuracy: 0.533
+2022-07-18 12:21:18,820,820 gr50_le5_lr0.01_sgd[451494] INFO Global Running time: 3::115.59
+2022-07-18 12:21:18,821,821 gr50_le5_lr0.01_sgd[451494] INFO Test Accuracy: 0.539
+2022-07-18 12:23:13,928,928 gr50_le5_lr0.01_sgd[451494] INFO Global Running time: 4::115.11
+2022-07-18 12:23:13,928,928 gr50_le5_lr0.01_sgd[451494] INFO Test Accuracy: 0.5315
+2022-07-18 12:25:08,838,838 gr50_le5_lr0.01_sgd[451494] INFO Global Running time: 5::114.91
+2022-07-18 12:25:08,838,838 gr50_le5_lr0.01_sgd[451494] INFO Test Accuracy: 0.5398
+2022-07-18 12:26:20,014,014 gr50_le5_lr0.01_sgd[460284] INFO 
+	*************** Client Settings ***************
+	 Number of clients: 10
+	 Dirichlet alpha: 0.5
+	 Dataset: Cifar-10
+	*************** Training Hyper-parameters ***************
+	 Batch size: 64
+	 Optimizer: SGD
+	 Momentum: 0.0
+	 Global Learning rate: 1.0
+	 Local Learning rate: 0.01
+	 Local epochs: 5
+	 Global iteration: 50
+	*************** Dataset and Models ***************
+	 Dataset: Cifar-10
+	 Model: Custom_cnn
+	*************** Device Settings ***************
+	 Core per Ray: 1
+	 Number of Processes: 60
+	 GPU Flag: True
+	 GPU Fraction: 0.1
+2022-07-18 12:26:22,181,181 gr50_le5_lr0.01_sgd[460284] INFO Data preprocessing time: 2.17
+2022-07-18 12:26:24,670,670 gr50_le5_lr0.01_sgd[460284] INFO Client initializing time: 2.49
+2022-07-18 12:26:30,730,730 gr50_le5_lr0.01_sgd[460284] INFO Aggregator initializing time: 6.06
+2022-07-18 12:26:55,601,601 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 0::24.87
+2022-07-18 12:26:55,602,602 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.1616
+2022-07-18 12:27:11,612,612 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 1::16.01
+2022-07-18 12:27:11,612,612 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.2772
+2022-07-18 12:27:26,686,686 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 2::15.07
+2022-07-18 12:27:26,687,687 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.3393
+2022-07-18 12:27:41,908,908 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 3::15.22
+2022-07-18 12:27:41,908,908 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.3778
+2022-07-18 12:27:57,008,008 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 4::15.10
+2022-07-18 12:27:57,008,008 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.4178
+2022-07-18 12:28:12,361,361 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 5::15.35
+2022-07-18 12:28:12,361,361 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.4272
+2022-07-18 12:28:27,761,761 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 6::15.40
+2022-07-18 12:28:27,761,761 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.4475
+2022-07-18 12:28:43,200,200 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 7::15.44
+2022-07-18 12:28:43,201,201 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.4656
+2022-07-18 12:28:58,963,963 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 8::15.76
+2022-07-18 12:28:58,963,963 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.4728
+2022-07-18 12:29:14,404,404 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 9::15.44
+2022-07-18 12:29:14,404,404 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.4813
+2022-07-18 12:29:29,840,840 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 10::15.44
+2022-07-18 12:29:29,840,840 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.4961
+2022-07-18 12:29:45,232,232 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 11::15.39
+2022-07-18 12:29:45,232,232 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5063
+2022-07-18 12:30:00,761,761 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 12::15.53
+2022-07-18 12:30:00,762,762 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5145
+2022-07-18 12:30:16,285,285 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 13::15.52
+2022-07-18 12:30:16,286,286 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5192
+2022-07-18 12:30:31,952,952 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 14::15.66
+2022-07-18 12:30:31,952,952 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5291
+2022-07-18 12:30:47,548,548 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 15::15.60
+2022-07-18 12:30:47,549,549 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5335
+2022-07-18 12:31:03,130,130 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 16::15.58
+2022-07-18 12:31:03,130,130 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5331
+2022-07-18 12:31:18,719,719 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 17::15.59
+2022-07-18 12:31:18,719,719 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5337
+2022-07-18 12:31:34,174,174 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 18::15.45
+2022-07-18 12:31:34,174,174 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5435
+2022-07-18 12:31:49,754,754 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 19::15.58
+2022-07-18 12:31:49,754,754 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5539
+2022-07-18 12:32:05,389,389 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 20::15.63
+2022-07-18 12:32:05,389,389 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5582
+2022-07-18 12:32:20,951,951 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 21::15.56
+2022-07-18 12:32:20,952,952 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5615
+2022-07-18 12:32:36,423,423 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 22::15.47
+2022-07-18 12:32:36,423,423 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5634
+2022-07-18 12:32:52,027,027 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 23::15.60
+2022-07-18 12:32:52,027,027 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5653
+2022-07-18 12:33:07,694,694 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 24::15.67
+2022-07-18 12:33:07,694,694 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5655
+2022-07-18 12:33:23,197,197 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 25::15.50
+2022-07-18 12:33:23,197,197 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5715
+2022-07-18 12:33:38,718,718 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 26::15.52
+2022-07-18 12:33:38,718,718 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5739
+2022-07-18 12:33:54,263,263 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 27::15.54
+2022-07-18 12:33:54,263,263 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5771
+2022-07-18 12:34:09,827,827 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 28::15.56
+2022-07-18 12:34:09,828,828 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5783
+2022-07-18 12:34:25,400,400 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 29::15.57
+2022-07-18 12:34:25,400,400 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5849
+2022-07-18 12:34:40,927,927 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 30::15.53
+2022-07-18 12:34:40,927,927 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5865
+2022-07-18 12:34:56,551,551 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 31::15.62
+2022-07-18 12:34:56,551,551 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5813
+2022-07-18 12:35:12,055,055 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 32::15.50
+2022-07-18 12:35:12,055,055 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5843
+2022-07-18 12:35:27,642,642 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 33::15.59
+2022-07-18 12:35:27,642,642 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5907
+2022-07-18 12:35:43,230,230 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 34::15.59
+2022-07-18 12:35:43,230,230 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.589
+2022-07-18 12:35:58,767,767 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 35::15.54
+2022-07-18 12:35:58,767,767 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.591
+2022-07-18 12:36:14,326,326 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 36::15.56
+2022-07-18 12:36:14,326,326 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5907
+2022-07-18 12:36:30,030,030 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 37::15.70
+2022-07-18 12:36:30,030,030 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5937
+2022-07-18 12:36:45,528,528 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 38::15.50
+2022-07-18 12:36:45,528,528 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5895
+2022-07-18 12:37:01,110,110 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 39::15.58
+2022-07-18 12:37:01,110,110 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.591
+2022-07-18 12:37:16,674,674 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 40::15.56
+2022-07-18 12:37:16,674,674 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5924
+2022-07-18 12:37:32,239,239 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 41::15.56
+2022-07-18 12:37:32,239,239 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5943
+2022-07-18 12:37:47,853,853 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 42::15.61
+2022-07-18 12:37:47,853,853 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5937
+2022-07-18 12:38:03,595,595 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 43::15.74
+2022-07-18 12:38:03,596,596 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5909
+2022-07-18 12:38:19,173,173 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 44::15.58
+2022-07-18 12:38:19,173,173 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5883
+2022-07-18 12:38:34,859,859 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 45::15.68
+2022-07-18 12:38:34,859,859 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5926
+2022-07-18 12:38:51,088,088 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 46::16.23
+2022-07-18 12:38:51,088,088 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5837
+2022-07-18 12:39:06,924,924 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 47::15.84
+2022-07-18 12:39:06,924,924 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5876
+2022-07-18 12:39:22,557,557 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 48::15.63
+2022-07-18 12:39:22,557,557 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5875
+2022-07-18 12:39:38,167,167 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 49::15.61
+2022-07-18 12:39:38,167,167 gr50_le5_lr0.01_sgd[460284] INFO Test Accuracy: 0.5896
+2022-07-18 12:39:38,167,167 gr50_le5_lr0.01_sgd[460284] INFO Experiment finished: gr50_le5_lr0.01_sgd
+2022-07-18 12:39:38,167,167 gr50_le5_lr0.01_sgd[460284] INFO Global Running time: 787.44

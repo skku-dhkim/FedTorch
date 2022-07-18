@@ -31,6 +31,8 @@ class CustomDataLoader:
             DataFrame: Client data distribution for iid-ness.
         """
         # Get dirichlet distribution
+        # Set a random seed for fixed data distribution
+        np.random.seed(2022)
         s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
         c_dist = pd.DataFrame(s)
 
