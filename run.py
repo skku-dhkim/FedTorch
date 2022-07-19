@@ -79,9 +79,9 @@ def main():
         start = time.time()
         ######################################################################################################
         fed_dataset, valid_loader, test_loader = dataset_call(client_settings['dataset'],
-                                                log_path=log_path,
-                                                dirichlet_alpha=client_settings['dirichlet_alpha'],
-                                                num_of_clients=client_settings['num_of_clients'])
+                                                              log_path=log_path,
+                                                              dirichlet_alpha=client_settings['dirichlet_alpha'],
+                                                              num_of_clients=client_settings['num_of_clients'])
         ######################################################################################################
         summary_logger.info("Data preprocessing time: {:.2f}".format(time.time() - start))
         system_logger.info("Data preprocessing finished properly.")
@@ -99,13 +99,15 @@ def main():
             if args.gpu:
                 clients[str(_id)] = Client.options(num_gpus=args.gpu_frac).remote(str(_id),
                                                                                   args.dataset.lower(),
-                                                                                  data, valid_loader,
+                                                                                  data,
+                                                                                  valid_loader,
                                                                                   train_settings,
                                                                                   log_path=log_path)
             else:
                 clients[str(_id)] = Client.options().remote(str(_id),
                                                             args.dataset.lower(),
-                                                            data, valid_loader,
+                                                            data,
+                                                            valid_loader,
                                                             train_settings,
                                                             log_path=log_path)
         summary_logger.info("Client initializing time: {:.2f}".format(time.time() - start))
@@ -191,7 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--opt', type=str, default='SGD')
     parser.add_argument('--batch', type=int, default=64)
     parser.add_argument('--local_iter', type=int, default=10)
-    parser.add_argument('--global_iter', type=int, default=50)
+    parser.add_argument('--global_iter', type=int, default=100)
     parser.add_argument('--local_lr', type=float, default=0.01)
     parser.add_argument('--global_lr', type=float, default=1.0)
     parser.add_argument('--momentum', type=float, default=0.0)
@@ -217,7 +219,8 @@ if __name__ == '__main__':
     summary_logger = get_file_logger("{}".format(args.exp_name),
                                      os.path.join(log_path, "experiment_summary.log"), args.flog)
     system_logger = get_file_logger("system_logger[{}]".format(args.exp_name),
-                                    os.path.join("./logs", "program_log_{}.log".format(datetime.today().date())), args.flog)
+                                    os.path.join("./logs", "program_log_{}.log".format(datetime.today().date())),
+                                    args.flog)
 
     # INFO: Exceptions
     system_logger.info("Program start with experiment name: {}".format(experiment_name))

@@ -157,14 +157,10 @@ class MixedModel(FederatedModel):
         return out
 
 
-#input_dim = 256
-#hidden = 120*84
-#num_feature = 84
-#out_dim=10
-
-
-##classifier part return, source, label , representation
 class ModelFedCon(nn.Module):
+    """
+        classifier part return, source, label , representation
+    """
 
     def __init__(self,  out_dim, n_classes, net_configs=None):
         super(ModelFedCon, self).__init__()
@@ -180,10 +176,7 @@ class ModelFedCon(nn.Module):
 
     def forward(self, x):
         h = self.features(x)
-        #print("h before:", h)
-        #print("h size:", h.size())
-        h = h.squeeze() ####representation tensor
-        #print("h after:", h)
+        h = h.squeeze()         # representation tensor
         x = self.l1(h)
         x = F.relu(x)
         x = self.l2(x)
@@ -192,8 +185,6 @@ class ModelFedCon(nn.Module):
         return y
 
 
-
-###cnn part producing representation
 class SimpleCNN_header(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim=10):
         super(SimpleCNN_header, self).__init__()
@@ -206,15 +197,12 @@ class SimpleCNN_header(nn.Module):
         # i.e. we fix the number of hidden layers i.e. 2 layers
         self.fc1 = nn.Linear(input_dim, hidden_dims[0])
         self.fc2 = nn.Linear(hidden_dims[0], hidden_dims[1])
-        #self.fc3 = nn.Linear(hidden_dims[1], output_dim)
 
     def forward(self, x):
-
         x = self.pool(self.relu(self.conv1(x)))
         x = self.pool(self.relu(self.conv2(x)))
         x = x.view(-1, 16 * 5 * 5)
 
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
-        # x = self.fc3(x)
         return x
