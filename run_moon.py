@@ -208,7 +208,7 @@ if __name__ == '__main__':
     parser.add_argument('--local_lr', type=float, default=0.01)
     parser.add_argument('--global_lr', type=float, default=1.0)
     parser.add_argument('--momentum', type=float, default=0.0)
-    parser.add_argument('--var_client', type=list, default=[])
+    #parser.add_argument('--var_client', type=list, default=[])
 
     # Logs settings
     parser.add_argument('--exp_name', type=str, required=True)
@@ -223,7 +223,7 @@ if __name__ == '__main__':
 
     # Log settings
     experiment_name = args.exp_name
-    log_path = os.path.join("../logs", "{}".format(experiment_name))
+    log_path = os.path.join("./logs", "{}".format(experiment_name))
     os.makedirs(log_path, exist_ok=True)
 
     #   - Logger Settings
@@ -231,7 +231,7 @@ if __name__ == '__main__':
     summary_logger = get_file_logger("{}".format(args.exp_name),
                                      os.path.join(log_path, "experiment_summary.log"), args.flog)
     system_logger = get_file_logger("system_logger[{}]".format(args.exp_name),
-                                    os.path.join("../logs", "program_log_{}.log".format(datetime.today().date())),
+                                    os.path.join("./logs", "program_log_{}.log".format(datetime.today().date())),
                                     args.flog)
 
     # INFO: Exceptions
