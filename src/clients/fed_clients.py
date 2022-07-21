@@ -4,6 +4,7 @@ from src import *
 from src.model import *
 from src.clients import *
 from torch.nn import CrossEntropyLoss
+from copy import deepcopy
 
 
 @ray.remote
@@ -48,6 +49,7 @@ class Client:
 
         # Device setting
         self.device = "cuda" if train_settings['use_gpu'] is True else "cpu"
+        self.previous_model = deepcopy(self.model.to(self.device))
 
         # Save information
         self.save_data()
@@ -101,10 +103,15 @@ class Client:
                                weight_decay=1e-5)
 
         loss_fn = torch.nn.CrossEntropyLoss().to(self.device)
-
-        original_state = self.get_parameters()
+        original_state = self.get_parameters()  
         original_rep = self.compute_representations()
-
+        ###############################################################################
+        # INFO: representation similarity with after global rep
+        if self.global_iter !=0:
+            self.calc_rep_similarity(self.current_rep, original_rep, 'rep_similarity_after')
+            self.cal_cos_similarity(self.current_state, original_state, 'weight_similarity_after')
+        ###############################################################################
+        
         # INFO: Local training logic
         for _ in range(self.training_settings['local_epochs']):
             training_loss = 0
@@ -143,20 +150,124 @@ class Client:
                     _summary_counter = 0
 
         # INFO: representation similarity with before global rep
-        current_rep = self.compute_representations()
-        self.calc_rep_similarity(original_rep, current_rep)
-        self.cal_cos_similarity(original_state, self.get_parameters())
+        self.current_rep = self.compute_representations()
+        self.current_state = self.get_parameters()
+        self.calc_rep_similarity(original_rep, self.current_rep, 'rep_similarity_before')
+        self.cal_cos_similarity(original_state, self.current_state, 'weight_similarity_before')
 
         self.save_model()
         self.global_iter += 1
 
-    def cal_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict) -> Optional[OrderedDict]:
+    async def train_moon(self) -> None:
+        self.model.to(self.device)
+        global_model = deepcopy(self.model)
+        optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
+                               lr=self.training_settings['local_lr'],
+                               momentum=self.training_settings['momentum'],
+                               weight_decay=1e-5)
+
+        loss_fn = torch.nn.CrossEntropyLoss().to(self.device)
+
+        
+        original_state = self.get_parameters()
+        original_rep = self.compute_representations()
+        
+        ###############################################################################
+        # INFO: representation similarity with after global rep
+        if self.global_iter !=0:
+            self.calc_rep_similarity(self.current_rep, original_rep, 'rep_similarity_after')
+            self.cal_cos_similarity(self.current_state, original_state, 'weight_similarity_after')
+        ###############################################################################
+
+        # INFO: Local training logic
+        for _ in range(self.training_settings['local_epochs']):
+            training_loss = 0
+            _summary_counter = 0
+            ###############################################################################
+            representations = {}
+
+            # INFO: HELPER FUNCTION FOR FEATURE EXTRACTION
+            def get_representations(name):
+                def hook(model, input, output):
+                    representations[name] = output.detach()
+                return hook
+
+            # INFO: REGISTER HOOK
+            # TODO: Model specific, need to make general for the future.
+            self.model.features.register_forward_hook(get_representations('rep'))
+            ###############################################################################
+
+            # INFO: Training steps
+            for x, y in self.train_loader:
+                inputs = x
+                targets = y
+
+                inputs = inputs.to(self.device)
+                targets = targets.to(self.device)
+                inputs.requires_grad = False
+                targets.requires_grad = False
+                targets = targets.long()
+                self.model.train()
+                optim.zero_grad()
+
+
+                outputs = self.model(inputs)
+                l_rep = representations['rep'].reshape((inputs.shape[0], -1))
+                _ = global_model(inputs)
+                g_rep = representations['rep'].reshape((inputs.shape[0], -1))
+
+                posi = self.cos_sim(l_rep, g_rep).reshape(-1, 1)
+
+                _ = self.previous_model(inputs)
+                p_rep = representations['rep'].reshape((inputs.shape[0], -1))
+                nega = self.cos_sim(l_rep, p_rep).reshape(-1, 1)
+                logits = torch.cat((posi, nega), dim=1)
+
+                #Hyperparameter
+                temperature = 0.5
+                mu= 5
+
+                logits /= temperature
+                labels = torch.zeros(inputs.size(0)).to(self.device).long()
+
+                loss2 = mu * loss_fn(logits, labels)
+                loss1 = loss_fn(outputs, targets)
+                loss = loss1 + loss2
+
+                loss.backward()
+                optim.step() 
+
+                # Summary Loss
+                training_loss += loss.item()
+
+                self.step_counter += 1
+                _summary_counter += 1
+
+                if _summary_counter % self.summary_count == 0:
+                    training_acc = self.compute_accuracy()
+
+                    self.summary_writer.add_scalar('training_loss', training_loss / _summary_counter, self.step_counter)
+                    self.summary_writer.add_scalar('training_acc', training_acc, self.step_counter)
+                    _summary_counter = 0
+
+        self.previous_model = deepcopy(self.model)
+        
+        # INFO: representation similarity with before global rep
+        self.current_rep = self.compute_representations()
+        self.current_state = self.get_parameters()
+        self.calc_rep_similarity(original_rep, self.current_rep, 'rep_similarity_before')
+        self.cal_cos_similarity(original_state, self.current_state, 'weight_similarity_before')
+
+        self.save_model()
+        self.global_iter += 1
+
+    def cal_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict, name: str) -> Optional[OrderedDict]:
         result = OrderedDict()
         for k in current_state.keys():
             score = self.cos_sim(torch.flatten(original_state[k].to(torch.float32)),
                                  torch.flatten(current_state[k].to(torch.float32)))
             result[k] = score
-            self.summary_writer.add_scalar("COS_similarity/{}".format(k), score, self.global_iter)
+            self.summary_writer.add_scalar("{}/{}".format(name, k), score, self.global_iter)
         return result
 
     def compute_accuracy(self) -> float:
@@ -208,8 +319,8 @@ class Client:
                 rep = torch.cat([rep, representations['rep'].reshape((x.shape[0], -1))], dim=0)
         return rep
 
-    def calc_rep_similarity(self, original_rep, current_rep) -> torch.Tensor:
+    def calc_rep_similarity(self, original_rep, current_rep, name) -> torch.Tensor:
         rd = self.cos_sim(original_rep, current_rep).cpu()
         score = torch.mean(rd)
-        self.summary_writer.add_scalar("representations_similarity", score, self.global_iter)
+        self.summary_writer.add_scalar("{}".format(name), score, self.global_iter)
         return score

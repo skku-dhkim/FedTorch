@@ -164,13 +164,15 @@ class Aggregator:
             score = self.cos_sim(torch.flatten(original_state[k].to(torch.float32)),
                                  torch.flatten(current_state[k].to(torch.float32)))
             result[k] = score
-            self.summary_writer.add_scalar("COS_similarity/{}".format(k), score, self.global_iter)
+            self.summary_writer.add_scalar("weight_similarity_before/{}".format(k), score, self.global_iter)
+            self.summary_writer.add_scalar("weight_similarity_after/{}".format(k), score, self.global_iter)
         return result
 
     def calc_rep_similarity(self) -> Optional[OrderedDict]:
         current_rep = self.compute_representations()
         rd = self.cos_sim(self.original_rep, current_rep).cpu()
         score = torch.mean(rd)
-        self.summary_writer.add_scalar("representations_similarity", score, self.global_iter)
+        self.summary_writer.add_scalar("rep_similarity_before", score, self.global_iter)
+        self.summary_writer.add_scalar("rep_similarity_after", score, self.global_iter)
         self.original_rep = current_rep
         return score
