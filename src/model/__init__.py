@@ -20,6 +20,15 @@ def model_call(model_name: str, num_of_classes: int):
         )
         _model.fc = fc
         return _model
+    if model_name.lower() == "resnet-18":
+        _model = resnet18()
+        fc = Sequential(
+            Linear(in_features=512, out_features=256, bias=True),
+            ReLU(inplace=True),
+            Linear(in_features=256, out_features=num_of_classes, bias=True)
+        )
+        _model.fc = fc
+        return _model
     else:
         raise NotImplementedError("Not implemented yet.")
 
