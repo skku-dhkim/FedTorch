@@ -116,11 +116,16 @@ class Aggregator:
 
         # INFO: REGISTER HOOK
         layer_names = [name for name, module in self.model.named_children()]
-        index = layer_names.index('fc')
+        if 'fc' in layer_names:
+            index = layer_names.index('fc')
+        elif 'classifier' in layer_names:
+            index = layer_names.index('classifier')
+        else:
+            raise ValueError("Unsupported layer name. Either \'fc\' or \'classifier\' supports.")
+
         features = layer_names[index-1]
         for name, module in self.model.named_children():
             if name == features:
-                print(name)
                 module.register_forward_hook(get_representations('rep'))
 
         self.model.eval()
