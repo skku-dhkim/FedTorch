@@ -18,8 +18,7 @@ class Aggregator:
 
         # Data setting
         self.test_loader: DataLoader = test_data
-        self.valid_loader : DataLoader = valid_data
-        #self
+        self.valid_loader: DataLoader = valid_data
 
         # Training settings
         self.training_settings = train_settings
@@ -101,7 +100,6 @@ class Aggregator:
             training_acc = sum(correct) / sum(total)
         return training_acc
 
-
     def compute_representations(self) -> float:
         """
         Returns:
@@ -109,26 +107,36 @@ class Aggregator:
         """
         representations = {}
         rep = torch.tensor([]).to(self.device)
-        ##### HELPER FUNCTION FOR FEATURE EXTRACTION
+
+        # INFO: HELPER FUNCTION FOR FEATURE EXTRACTION
         def get_representations(name):
             def hook(model, input, output):
                 representations[name] = output.detach()
             return hook
 
-        #### REGISTER HOOK
-        ##MOON
-        self.model.features.register_forward_hook(get_representations('rep'))
+        # INFO: REGISTER HOOK
+        layer_names = [name for name, module in self.model.named_children()]
+        if 'fc' in layer_names:
+            index = layer_names.index('fc')
+        elif 'classifier' in layer_names:
+            index = layer_names.index('classifier')
+        else:
+            raise ValueError("Unsupported layer name. Either \'fc\' or \'classifier\' supports.")
+
+        features = layer_names[index-1]
+        for name, module in self.model.named_children():
+            if name == features:
+                module.register_forward_hook(get_representations('rep'))
 
         self.model.eval()
         with torch.no_grad():
             for x, y in self.valid_loader:
                 x = x.to(self.device)
-                y = y.to(self.device)
-                outputs = self.model(x)
+                _ = self.model(x)
                 rep = torch.cat([rep, representations['rep'].reshape((x.shape[0], -1))], dim=0)
         return rep
 
-    def fedAvg(self):
+    def fedAvg(self, model_save: bool = False):
         total_len = 0
         empty_model = OrderedDict()
         original_model = self.get_parameters()
@@ -148,7 +156,6 @@ class Aggregator:
 
         self.test_accuracy = self.compute_accuracy()
 
-
         # Calculate cos_similarity with previous representations
         self.calc_rep_similarity()
 
@@ -156,7 +163,9 @@ class Aggregator:
         current_model = self.get_parameters()
         self.calc_cos_similarity(original_model, current_model)
         self.summary_writer.add_scalar('global_test_acc', self.test_accuracy, self.global_iter)
-        self.save_model()
+
+        if model_save:
+            self.save_model()
 
     def calc_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict) -> Optional[OrderedDict]:
         result = OrderedDict()
@@ -168,7 +177,7 @@ class Aggregator:
             self.summary_writer.add_scalar("weight_similarity_after/{}".format(k), score, self.global_iter)
         return result
 
-    def calc_rep_similarity(self) -> Optional[OrderedDict]:
+    def calc_rep_similarity(self) -> torch.Tensor:
         current_rep = self.compute_representations()
         rd = self.cos_sim(self.original_rep, current_rep).cpu()
         score = torch.mean(rd)

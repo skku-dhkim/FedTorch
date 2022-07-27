@@ -95,7 +95,7 @@ class Client:
     def data_len(self):
         return len(self.train)
 
-    async def train(self) -> None:
+    async def train(self, model_save: bool = False) -> None:
         self.model.to(self.device)
         optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
                                lr=self.training_settings['local_lr'],
@@ -258,7 +258,8 @@ class Client:
         self.calc_rep_similarity(original_rep, self.current_rep, 'rep_similarity_before')
         self.cal_cos_similarity(original_state, self.current_state, 'weight_similarity_before')
 
-        self.save_model()
+        if model_save:
+            self.save_model()
         self.global_iter += 1
 
     def cal_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict, name: str) -> Optional[OrderedDict]:
@@ -304,12 +305,20 @@ class Client:
         def get_representations(name):
             def hook(model, input, output):
                 representations[name] = output.detach()
-
             return hook
 
         # INFO: REGISTER HOOK
-        # TODO: Model specific, need to make general for the future.
-        self.model.features.register_forward_hook(get_representations('rep'))
+        layer_names = [name for name, module in self.model.named_children()]
+        if 'fc' in layer_names:
+            index = layer_names.index('fc')
+        elif 'classifier' in layer_names:
+            index = layer_names.index('classifier')
+        else:
+            raise ValueError("Unsupported layer name. Either \'fc\' or \'classifier\' supports.")
+        features = layer_names[index-1]
+        for name, module in self.model.named_children():
+            if name == features:
+                module.register_forward_hook(get_representations('rep'))
 
         self.model.eval()
         with torch.no_grad():
