@@ -31,6 +31,7 @@ class Client:
         self.training_settings = train_settings
         self.global_iter = 0
         self.step_counter = 0
+        self.epoch_counter = 0
 
         # Model
         self.model: FederatedModel = model_call(train_settings['model'], NUMBER_OF_CLASSES[dataset_name])
@@ -95,10 +96,14 @@ class Client:
 
     async def train(self, model_save: bool = False) -> None:
         self.model.to(self.device)
-        optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
-                               lr=self.training_settings['local_lr'],
-                               momentum=self.training_settings['momentum'],
-                               weight_decay=1e-5)
+        if self.training_settings['optim'].lower() == 'sgd':
+            optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
+                                   lr=self.training_settings['local_lr'],
+                                   momentum=self.training_settings['momentum'],
+                                   weight_decay=1e-5)
+        else:
+            optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
+                                   lr=self.training_settings['local_lr'])
 
         loss_fn = torch.nn.CrossEntropyLoss().to(self.device)
 
@@ -135,13 +140,24 @@ class Client:
                 self.step_counter += 1
                 _summary_counter += 1
 
-                if _summary_counter % self.summary_count == 0:
-                    training_acc = self.compute_accuracy()
+                if self.summary_count > 0:
+                    if _summary_counter % self.summary_count == 0:
+                        training_acc, _ = self.compute_accuracy(self.train_loader)
 
-                    self.summary_writer.add_scalar('training_loss', training_loss / _summary_counter, self.step_counter)
-                    self.summary_writer.add_scalar('training_acc', training_acc, self.step_counter)
-                    _summary_counter = 0
+                        self.summary_writer.add_scalar('step_loss', training_loss / _summary_counter, self.step_counter)
+                        self.summary_writer.add_scalar('step_acc', training_acc, self.step_counter)
+                        _summary_counter = 0
 
+            valid_acc, valid_loss = self.compute_accuracy(self.test_loader)
+            train_acc, train_loss = self.compute_accuracy(self.train_loader)
+
+            self.summary_writer.add_scalar('loss/train', train_loss, self.epoch_counter)
+            self.summary_writer.add_scalar('loss/test', valid_loss,  self.epoch_counter)
+
+            self.summary_writer.add_scalar('acc/local_train', train_acc, self.epoch_counter)
+            self.summary_writer.add_scalar('acc/local_test', valid_acc, self.epoch_counter)
+
+            self.epoch_counter += 1
         # INFO: representation similarity with before global rep
         current_rep = self.compute_representations()
         self.calc_rep_similarity(original_rep, current_rep)
@@ -160,7 +176,7 @@ class Client:
             self.summary_writer.add_scalar("COS_similarity/{}".format(k), score, self.global_iter)
         return result
 
-    def compute_accuracy(self) -> float:
+    def compute_accuracy(self, data_loader: DataLoader) -> Tuple[float, float]:
         """
         Compute the accuracy using its test dataloader.
         Returns:
@@ -170,17 +186,19 @@ class Client:
         self.model.eval()
 
         correct = []
-        total = []
+        loss_list = []
         with torch.no_grad():
-            for x, y in self.test_loader:
+            for x, y in data_loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
                 outputs = self.model(x)
+                loss = self.loss(outputs, y)
+                loss_list.append(loss.item())
                 y_max_scores, y_max_idx = outputs.max(dim=1)
                 correct.append((y == y_max_idx).sum().item())
-                total.append(len(x))
-            training_acc = sum(correct) / sum(total)
-        return training_acc
+            valid_acc = np.average(correct)
+            valid_loss = np.average(loss_list)
+        return valid_acc, valid_loss
 
     def compute_representations(self) -> float:
         """

@@ -202,7 +202,7 @@ if __name__ == '__main__':
     parser.add_argument('--exp_name', type=str, required=True)
     parser.add_argument('--slog', type=str, default='INFO')
     parser.add_argument('--flog', type=str, default='INFO')
-    parser.add_argument('--summary_count', type=int, default=10)
+    parser.add_argument('--summary_count', type=int, default=0)
 
     # System settings
     parser.add_argument('--ray_core', type=int, default=1)
