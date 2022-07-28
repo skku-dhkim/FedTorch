@@ -1,3 +1,10 @@
 # Project exclude paths
-./venv/
-./data/
+/venv/
+/data/
+/logs/
+/src/__pycache__/
+/conf/__pycache__/
+/src/clients/__pycache__/
+/src/train/__pycache__/
+/src/utils/__pycache__/
+/src/model/__pycache__/

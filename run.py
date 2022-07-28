@@ -138,7 +138,8 @@ def main():
         aggregator = Aggregator(test_loader, valid_loader,
                                 args.dataset.lower(),
                                 log_path=log_path,
-                                train_settings=train_settings)
+                                train_settings=train_settings,
+                                num_of_clients=client_settings['num_of_clients'])
         ######################################################################################################
         summary_logger.info("Aggregator initializing time: {:.2f}".format(time.time() - start))
         system_logger.info("Aggregation container created successfully.")

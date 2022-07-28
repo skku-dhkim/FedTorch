@@ -57,6 +57,11 @@ class Client:
 
         self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)
 
+    def set_fix_lr(self, lr_value) -> None:
+        self.summary_writer.add_scalar("fixed_learning_rate", lr_value, self.global_iter)
+    def set_siml(self, siml) -> None:
+        self.summary_writer.add_scalar("Total_wight_similarity",siml, self.global_iter)
+    
     def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
         self.model.load_state_dict(state_dict, strict=True)
 
