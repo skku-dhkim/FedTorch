@@ -21,7 +21,7 @@ class Client:
         # Data settings
         self.train = data['train']
         self.train_loader = DataLoader(self.train,
-                                       batch_size=train_settings['batch_size'], shuffle=True)
+                                       batch_size=train_settings['batch_size'], shuffle=True, drop_last=True)
         self.test = data['valid']
         self.test_loader = DataLoader(self.test,
                                       batch_size=train_settings['batch_size'], shuffle=False)
