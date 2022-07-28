@@ -14,13 +14,8 @@ def model_distribution(aggregator: Aggregator, clients: dict) -> None:
 
     """
     model_weights = aggregator.get_parameters()
-    
-    lrs = aggregator.get_lrs()
-    siml = aggregator.get_sim()
-
     ray.get([client.set_parameters.remote(model_weights) for _, client in clients.items()])
-    ray.get([client.set_fix_lr.remote(lrs[int(_)]) for _, client in clients.items()])
-    ray.get([client.set_siml.remote(siml[int(_)]) for _, client in clients.items()])
+
 
 def model_collection(clients: dict, aggregator: Aggregator, with_data_len: bool = False) -> None:
     """
