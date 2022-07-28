@@ -143,9 +143,6 @@ class Aggregator:
 
         for _, client in self.collected_weights.items():
             total_len += client['data_len']
-        
-        self.lrs = self.fixed_lr(original_model)
-        self.sim_l=self.sim_list(original_model)
 
         for k, v in self.model.state_dict().items():
             for _, client in self.collected_weights.items():
