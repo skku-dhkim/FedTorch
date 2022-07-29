@@ -140,6 +140,7 @@ class Aggregator:
         total_len = 0
         empty_model = OrderedDict()
         original_model = self.get_parameters()
+
         for _, client in self.collected_weights.items():
             total_len += client['data_len']
 

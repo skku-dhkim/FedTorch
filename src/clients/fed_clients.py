@@ -57,6 +57,11 @@ class Client:
 
         self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)
 
+    def set_fix_lr(self, lr_value) -> None:
+        self.summary_writer.add_scalar("fixed_learning_rate", lr_value, self.global_iter)
+    def set_siml(self, siml) -> None:
+        self.summary_writer.add_scalar("Total_wight_similarity",siml, self.global_iter)
+    
     def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
         self.model.load_state_dict(state_dict, strict=True)
 
@@ -148,6 +153,11 @@ class Client:
                     self.summary_writer.add_scalar('training_loss', training_loss / _summary_counter, self.step_counter)
                     self.summary_writer.add_scalar('training_acc', training_acc, self.step_counter)
                     _summary_counter = 0
+
+        # INFO: Learning Rate Adaptation (by Dongwon)
+        ## Need Modification : Need a controller for learning rate adaptation algorithm
+        self.current_state = self.get_parameters()
+        self.lr_adaptation(original_state, self.current_state, target_sim = 0.99)
 
         # INFO: representation similarity with before global rep
         self.current_rep = self.compute_representations()
@@ -252,6 +262,11 @@ class Client:
 
         self.previous_model = deepcopy(self.model)
         
+        # INFO: Learning Rate Adaptation (by Dongwon)
+        ## NEED MODIFICATION : Need a controller for learning rate adaptation algorithm
+        self.current_state = self.get_parameters()
+        self.lr_adaptation(original_state, self.current_state, target_sim = 0.99, clip=1.0)
+
         # INFO: representation similarity with before global rep
         self.current_rep = self.compute_representations()
         self.current_state = self.get_parameters()
@@ -333,3 +348,50 @@ class Client:
         score = torch.mean(rd)
         self.summary_writer.add_scalar("{}".format(name), score, self.global_iter)
         return score
+        
+    ## INFO: Learning Rate Adaptation based on fixed cosine value + Measure Total Weight Similarity
+    def lr_adaptation(self, original_state, current_state, target_sim = 0.99, clip=1.0):#99999
+        original_params = [] ## flattened glob_weight
+        local_params = [] ## flattened updated_local_weight
+        grad_state = OrderedDict()
+        new_state = OrderedDict()
+        
+        for k in current_state.keys():
+            original_params.append(torch.flatten(original_state[k].to(torch.float32)))
+            local_params.append(torch.flatten(current_state[k].to(torch.float32)))
+            grad_state[k] = current_state[k] - original_state[k]
+            
+        original_params = torch.cat(original_params) ## flatten and change to vector
+        local_params = torch.cat(local_params)
+        grad_params = local_params - original_params
+        
+        # INFO: Calculate Total Weight Similarity on each client
+        siml = self.cos_sim(local_params, original_params).item()
+        self.summary_writer.add_scalar("Total_weight_similarity", siml, self.global_iter)
+
+        # INFO: Calculate learning rate on each clients
+        A = torch.dot(grad_params, original_params)
+        G = torch.dot(original_params, original_params)
+        dG = torch.dot(grad_params, grad_params)
+        T = target_sim**2
+        C = self.cos_sim(grad_params,original_params)**2            
+        dtr = ((1.0-T)*A)**2 + G*dG*(1.0-T)*T*(T-C)
+        sq = torch.sqrt(dtr)
+        head = (1.0-T)*A +sq
+        body = (T-C) * dG ##warning!! this part coud be "too small" to be denominator
+        X = head/body
+        
+        # INFO: Clip to specific value if the value is NaN or inf
+        if torch.isnan(X) or torch.isinf(X):
+            X = clip
+        
+        # INFO: Clip to specific value if the value is above the standard(constant) value
+        # NEED MODIFICATION : Need an input for a constant value
+        fixed_lr = torch.clamp(X,-clip, clip).item()
+        
+        self.summary_writer.add_scalar("real_learning_rate", fixed_lr * self.training_settings['local_lr'], self.global_iter)        
+        
+        ## INFO: Update the local model with new learning rate
+        for k in current_state.keys():
+            new_state[k] = original_state[k] + grad_state[k]*fixed_lr
+        self.set_parameters(new_state)
