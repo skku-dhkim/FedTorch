@@ -5,6 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 import seaborn as sns
 
+
 class CustomDataLoader:
     def __init__(self, train_data, test_data, log_path, transform=None):
         self.train_X = train_data.data
@@ -12,6 +13,8 @@ class CustomDataLoader:
 
         self.test_X = test_data.data
         self.test_Y = np.array(test_data.targets)
+
+        self.valid_set = {'x': [], 'y': []}
 
         self.num_of_categories = len(train_data.classes)
         self.categories_train_X, self.categories_train_Y = None, None
@@ -32,7 +35,7 @@ class CustomDataLoader:
         """
         # Get dirichlet distribution
         # Set a random seed for fixed data distribution
-        np.random.seed(2022)
+        # np.random.seed(2022)
         s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
         c_dist = pd.DataFrame(s)
 
@@ -86,8 +89,6 @@ class CustomDataLoader:
 
             client['train']['x'] = client['train']['x'][index]
             client['train']['y'] = client['train']['y'][index]
-            # client['test']['x'] = self.test_X
-            # client['test']['y'] = self.test_Y
 
         return clients
 
@@ -132,7 +133,6 @@ class CustomDataLoader:
                 self.valid_set['x'].append(valid_x[idx])
                 self.valid_set['y'].append(valid_y[idx])
             client['valid'] = DatasetWrapper({'x': valid_x, 'y': valid_y}, transform=self.transform)
-            # client['test'] = DatasetWrapper(client['test'], transform=self.transform)
         return clients
 
     def load(self, number_of_clients: int, dirichlet_alpha: float) -> tuple:
@@ -145,7 +145,6 @@ class CustomDataLoader:
         """
         # 1. Client definition and matching classes and collect validation set
         clients = [{'train': {'x': [], 'y': []}, 'valid': {'x': [], 'y': []}} for _ in range(number_of_clients)]
-        self.valid_set = {'x': [], 'y': []}
 
         # 2. Categorization of dataset
         self.categories_train_X, self.categories_train_Y = self._categorize(self.train_X, self.train_Y)
@@ -159,7 +158,8 @@ class CustomDataLoader:
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
         federated_dataset = self._to_dataset(federated_dataset)
         valid_loader = DataLoader(DatasetWrapper(self.valid_set, transform=self.transform), batch_size=16)
-        test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y}, transform=self.transform), batch_size=16)
+        test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y},
+                                                transform=self.transform), batch_size=16)
 
         return federated_dataset, valid_loader, test_loader
 
