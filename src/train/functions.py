@@ -48,3 +48,17 @@ def local_training(clients: dict) -> None:
 
     """
     ray.get([client.train.remote(early_stopping=True) for _, client in clients.items()])
+
+
+# New Modification 22.07.20
+def local_training_moon(clients: dict) -> None:
+    """
+
+    Args:
+        clients: (dict) {str: ray Client Actor}
+
+    Returns: None
+
+    """
+    ray.get([client.train_moon.remote() for _, client in clients.items()])
+
