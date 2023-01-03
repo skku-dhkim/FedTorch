@@ -47,4 +47,4 @@ def local_training(clients: dict) -> None:
     Returns: None
 
     """
-    ray.get([client.train.remote() for _, client in clients.items()])
+    ray.get([client.train.remote(early_stopping=True) for _, client in clients.items()])

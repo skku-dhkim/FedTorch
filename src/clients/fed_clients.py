@@ -4,6 +4,7 @@ from src import *
 from src.model import *
 from src.clients import *
 from torch.nn import CrossEntropyLoss
+from src.utils.pytorch_tools import EarlyStopping
 
 
 @ray.remote
@@ -94,7 +95,7 @@ class Client:
     def data_len(self):
         return len(self.train)
 
-    async def train(self, model_save: bool = False) -> None:
+    async def train(self, model_save: bool = False, early_stopping: bool = False) -> None:
         self.model.to(self.device)
         if self.training_settings['optim'].lower() == 'sgd':
             optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
@@ -104,6 +105,12 @@ class Client:
         else:
             optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
                                    lr=self.training_settings['local_lr'])
+
+        if early_stopping:
+            # TODO: patience value may be the hyperparameter.
+            early_stop = EarlyStopping(patience=5, summary_path=self.summary_path, delta=0)
+        else:
+            early_stop = None
 
         loss_fn = torch.nn.CrossEntropyLoss().to(self.device)
 
@@ -157,14 +164,24 @@ class Client:
             self.summary_writer.add_scalar('acc/local_train', train_acc, self.epoch_counter)
             self.summary_writer.add_scalar('acc/local_test', valid_acc, self.epoch_counter)
 
+            if early_stop is not None:
+                early_stop(valid_loss, self.model)
+                if early_stop.early_stop:
+                    if model_save:
+                        self.save_model()
+                    self.epoch_counter += 1
+                    break
+
             self.epoch_counter += 1
+
         # INFO: representation similarity with before global rep
         current_rep = self.compute_representations()
         self.calc_rep_similarity(original_rep, current_rep)
         self.cal_cos_similarity(original_state, self.get_parameters())
 
-        if model_save:
-            self.save_model()
+        # TODO: Deprecate if early stop works properly.
+        # if model_save:
+        #     self.save_model()
         self.global_iter += 1
 
     def cal_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict) -> Optional[OrderedDict]:
