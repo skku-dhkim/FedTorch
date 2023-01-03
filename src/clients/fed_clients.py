@@ -4,6 +4,7 @@ from src import *
 from src.model import *
 from src.clients import *
 from torch.nn import CrossEntropyLoss
+from src.utils.pytorch_tools import EarlyStopping
 from copy import deepcopy
 
 
@@ -22,7 +23,7 @@ class Client:
         # Data settings
         self.train = data['train']
         self.train_loader = DataLoader(self.train,
-                                       batch_size=train_settings['batch_size'], shuffle=True)
+                                       batch_size=train_settings['batch_size'], shuffle=True, drop_last=True)
         self.test = data['valid']
         self.test_loader = DataLoader(self.test,
                                       batch_size=train_settings['batch_size'], shuffle=False)
@@ -32,6 +33,7 @@ class Client:
         self.training_settings = train_settings
         self.global_iter = 0
         self.step_counter = 0
+        self.epoch_counter = 0
 
         # Model
         self.model: FederatedModel = model_call(train_settings['model'], NUMBER_OF_CLASSES[dataset_name])
@@ -100,12 +102,22 @@ class Client:
     def data_len(self):
         return len(self.train)
 
-    async def train(self, model_save: bool = False) -> None:
+    async def train(self, model_save: bool = False, early_stopping: bool = False) -> None:
         self.model.to(self.device)
-        optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
-                               lr=self.training_settings['local_lr'],
-                               momentum=self.training_settings['momentum'],
-                               weight_decay=1e-5)
+        if self.training_settings['optim'].lower() == 'sgd':
+            optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
+                                   lr=self.training_settings['local_lr'],
+                                   momentum=self.training_settings['momentum'],
+                                   weight_decay=1e-5)
+        else:
+            optim = self.optimizer(filter(lambda p: p.requires_grad, self.model.parameters()),
+                                   lr=self.training_settings['local_lr'])
+
+        if early_stopping:
+            # TODO: patience value may be the hyperparameter.
+            early_stop = EarlyStopping(patience=5, summary_path=self.summary_path, delta=0)
+        else:
+            early_stop = None
 
         loss_fn = torch.nn.CrossEntropyLoss().to(self.device)
         original_state = self.get_parameters()  
@@ -147,12 +159,32 @@ class Client:
                 self.step_counter += 1
                 _summary_counter += 1
 
-                if _summary_counter % self.summary_count == 0:
-                    training_acc = self.compute_accuracy()
+                if self.summary_count > 0:
+                    if _summary_counter % self.summary_count == 0:
+                        training_acc, _ = self.compute_accuracy(self.train_loader)
 
-                    self.summary_writer.add_scalar('training_loss', training_loss / _summary_counter, self.step_counter)
-                    self.summary_writer.add_scalar('training_acc', training_acc, self.step_counter)
-                    _summary_counter = 0
+                        self.summary_writer.add_scalar('step_loss', training_loss / _summary_counter, self.step_counter)
+                        self.summary_writer.add_scalar('step_acc', training_acc, self.step_counter)
+                        _summary_counter = 0
+
+            valid_acc, valid_loss = self.compute_accuracy(self.test_loader)
+            train_acc, train_loss = self.compute_accuracy(self.train_loader)
+
+            self.summary_writer.add_scalar('loss/train', train_loss, self.epoch_counter)
+            self.summary_writer.add_scalar('loss/test', valid_loss,  self.epoch_counter)
+
+            self.summary_writer.add_scalar('acc/local_train', train_acc, self.epoch_counter)
+            self.summary_writer.add_scalar('acc/local_test', valid_acc, self.epoch_counter)
+
+            if early_stop is not None:
+                early_stop(valid_loss, self.model)
+                if early_stop.early_stop:
+                    if model_save:
+                        self.save_model()
+                    self.epoch_counter += 1
+                    break
+
+            self.epoch_counter += 1
 
         # INFO: Learning Rate Adaptation (by Dongwon)
         ## Need Modification : Need a controller for learning rate adaptation algorithm
@@ -273,8 +305,9 @@ class Client:
         self.calc_rep_similarity(original_rep, self.current_rep, 'rep_similarity_before')
         self.cal_cos_similarity(original_state, self.current_state, 'weight_similarity_before')
 
-        if model_save:
-            self.save_model()
+        # TODO: Deprecate if early stop works properly.
+        # if model_save:
+        #     self.save_model()
         self.global_iter += 1
 
     def cal_cos_similarity(self, original_state: OrderedDict, current_state: OrderedDict, name: str) -> Optional[OrderedDict]:
@@ -286,7 +319,7 @@ class Client:
             self.summary_writer.add_scalar("{}/{}".format(name, k), score, self.global_iter)
         return result
 
-    def compute_accuracy(self) -> float:
+    def compute_accuracy(self, data_loader: DataLoader) -> Tuple[float, float]:
         """
         Compute the accuracy using its test dataloader.
         Returns:
@@ -296,17 +329,19 @@ class Client:
         self.model.eval()
 
         correct = []
-        total = []
+        loss_list = []
         with torch.no_grad():
-            for x, y in self.test_loader:
+            for x, y in data_loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
                 outputs = self.model(x)
+                loss = self.loss(outputs, y)
+                loss_list.append(loss.item())
                 y_max_scores, y_max_idx = outputs.max(dim=1)
                 correct.append((y == y_max_idx).sum().item())
-                total.append(len(x))
-            training_acc = sum(correct) / sum(total)
-        return training_acc
+            valid_acc = np.average(correct)
+            valid_loss = np.average(loss_list)
+        return valid_acc, valid_loss
 
     def compute_representations(self) -> float:
         """
