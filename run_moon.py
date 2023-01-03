@@ -85,11 +85,6 @@ def main():
                                                               dirichlet_alpha=client_settings['dirichlet_alpha'],
                                                               num_of_clients=client_settings['num_of_clients'])
         ######################################################################################################
-        # Find Max datasize
-        #datasize = [len(data['train']) for data in fed_dataset]
-        #prop = [(len(datasize)*data)/sum(datasize) for data in datasize]
-        #print(datasize, prop)
-        ######################################################################################################
         summary_logger.info("Data preprocessing time: {:.2f}".format(time.time() - start))
         system_logger.info("Data preprocessing finished properly.")
     except Exception as e:
@@ -161,10 +156,10 @@ def main():
             F.model_distribution(aggregator=aggregator, clients=clients)
 
             stream_logger.debug("[*] Local training process...")
-
-            # INFO : Normal Local Training
-            F.local_training(clients)
-            #F.local_training_moon(clients)
+            
+            # INFO - training with contrastive loss(MOON)
+            #F.local_training(clients)
+            F.local_training_moon(clients)
 
             stream_logger.debug("[*] Model collection...")
             F.model_collection(clients=clients, aggregator=aggregator, with_data_len=True)
