@@ -77,13 +77,12 @@ def compute_accuracy(model: Module, loss_fn: nn, data_loader: DataLoader):
     return acc, loss
 
 
-@ray.remote
+@ray.remote(max_calls=1)
 def train(
         client: Client,
         training_settings: dict,
         num_of_classes: int,
         early_stopping: bool = False):
-
     # TODO: Need to check is_available() is allowed.
     device = "cuda" if torch.cuda.is_available() is True else "cpu"
 
@@ -224,4 +223,3 @@ def local_training_moon(clients: dict) -> None:
 
     """
     ray.get([client.train_moon.remote() for _, client in clients.items()])
-

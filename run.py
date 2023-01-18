@@ -23,9 +23,11 @@ if __name__ == '__main__':
     parser.add_argument('--n_clients', type=int, required=True)
     parser.add_argument('--dirichlet_alpha', type=float, default=0.5)
     parser.add_argument('--dataset', type=str, default='Cifar-10')
+    parser.add_argument('--save_data', type=lambda x: bool(strtobool(x)), default=False)
 
     # Model settings
     parser.add_argument('--model', type=str, default='Custom_cnn')
+    parser.add_argument('--save_model', type=lambda x: bool(strtobool(x)), default=False)
 
     # Training settings
     parser.add_argument('--opt', type=str, default='SGD')
@@ -109,7 +111,7 @@ if __name__ == '__main__':
     try:
         # INFO: Run Function
         # TODO: Make additional Federated method
-        FedAvg.run(client_settings, train_settings)
+        FedAvg.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
     except Exception as e:
         system_logger.error(traceback.format_exc())
         raise Exception(traceback.format_exc())
