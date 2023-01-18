@@ -1,9 +1,10 @@
-from src.model.skeleton import FederatedModel
+import torch
+import copy
+import torch.nn.functional as F
+
 from .custom_cnn import CustomCNN, ModelFedCon
 from torchvision.models import *
-from torch.nn import *
-
-import torch.nn.functional as F
+from torch.nn import Sequential, Linear, ReLU
 
 
 def model_call(model_name: str, num_of_classes: int):
@@ -33,9 +34,17 @@ def model_call(model_name: str, num_of_classes: int):
         raise NotImplementedError("Not implemented yet.")
 
 
+NUMBER_OF_CLASSES = {
+        'cifar-10': 10,
+        'cifar-100': 100,
+        'mnist': 10
+}
+
 __all__ = [
-    'FederatedModel',
     'CustomCNN',
     'model_call',
     'F',
+    'NUMBER_OF_CLASSES',
+    'torch',
+    'copy',
 ]
