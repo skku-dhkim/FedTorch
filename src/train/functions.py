@@ -159,7 +159,7 @@ def train(
         summary_writer.add_scalar('epoch_loss/test', test_loss, client.epoch_counter)
 
         summary_writer.add_scalar('epoch_acc/local_train', train_acc, client.epoch_counter)
-        summary_writer.add_scalar('epoch_acc/local_test', train_acc, client.epoch_counter)
+        summary_writer.add_scalar('epoch_acc/local_test', test_acc, client.epoch_counter)
 
         client.epoch_counter += 1
 
