@@ -63,6 +63,7 @@ def compute_accuracy(model: Module, loss_fn: nn, data_loader: DataLoader):
 
     correct = []
     loss_list = []
+    total_len = []
     with torch.no_grad():
         for x, y in data_loader:
             x = x.to(device)
@@ -72,8 +73,9 @@ def compute_accuracy(model: Module, loss_fn: nn, data_loader: DataLoader):
             loss_list.append(loss.item())
             y_max_scores, y_max_idx = outputs.max(dim=1)
             correct.append((y == y_max_idx).sum().item())
-        acc = np.average(correct)
-        loss = np.average(loss_list)
+            total_len.append(len(x))
+        acc = sum(correct) / sum(total_len)
+        loss = sum(loss_list) / sum(total_len)
     return acc, loss
 
 

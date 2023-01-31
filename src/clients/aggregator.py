@@ -48,8 +48,8 @@ class Aggregator:
         # self.original_rep = self.compute_representations()
         self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)
 
-    def set_parameters(self, state_dict: Union[OrderedDict, dict]) -> None:
-        self.model.load_state_dict(state_dict, strict=True)
+    def set_parameters(self, state_dict: Union[OrderedDict, dict], strict=True) -> None:
+        self.model.load_state_dict(state_dict, strict=strict)
 
     def get_parameters(self, ordict: bool = True) -> Union[OrderedDict, list]:
         if ordict:
