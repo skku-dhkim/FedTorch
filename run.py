@@ -4,7 +4,7 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg
+from src.methods import FedAvg, FedKL
 
 import argparse
 import os
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     try:
         # INFO: Run Function
         # TODO: Make additional Federated method
-        FedAvg.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
     except Exception as e:
         system_logger.error(traceback.format_exc())
         raise Exception(traceback.format_exc())

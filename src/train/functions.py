@@ -1,3 +1,5 @@
+import copy
+
 from . import call_optimizer
 from src import *
 from src.model import model_call
@@ -63,6 +65,8 @@ def compute_accuracy(model: Module, loss_fn: nn, data_loader: DataLoader):
 
     correct = []
     loss_list = []
+    total_len = []
+
     with torch.no_grad():
         for x, y in data_loader:
             x = x.to(device)
@@ -72,8 +76,9 @@ def compute_accuracy(model: Module, loss_fn: nn, data_loader: DataLoader):
             loss_list.append(loss.item())
             y_max_scores, y_max_idx = outputs.max(dim=1)
             correct.append((y == y_max_idx).sum().item())
-        acc = np.average(correct)
-        loss = np.average(loss_list)
+            total_len.append(len(x))
+        acc = sum(correct) / sum(total_len)
+        loss = sum(loss_list) / sum(total_len)
     return acc, loss
 
 
@@ -103,8 +108,7 @@ def train(
     if training_settings['optim'].lower() == 'sgd':
         optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
                           lr=training_settings['local_lr'],
-                          momentum=training_settings['momentum'],
-                          weight_decay=1e-5)
+                          momentum=training_settings['momentum'])
     else:
         optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
                           lr=training_settings['local_lr'])
@@ -161,6 +165,9 @@ def train(
         summary_writer.add_scalar('epoch_acc/local_train', train_acc, client.epoch_counter)
         summary_writer.add_scalar('epoch_acc/local_test', test_acc, client.epoch_counter)
 
+        mark_accuracy(client, model, summary_writer)
+        # mark_entropy(client, model, summary_writer)
+
         client.epoch_counter += 1
 
     # INFO - Local model update
@@ -210,6 +217,62 @@ def update_client_dict(clients: dict, trained_client: list):
         clients[client.name] = client
     return clients
 
+
+def mark_accuracy(client: Client, model_t: Module, summary_writer: SummaryWriter):
+    # TODO: Need to check is_available() is allowed.
+    device = "cuda" if torch.cuda.is_available() is True else "cpu"
+
+    model_o = copy.deepcopy(model_t)
+    model_o.load_state_dict(client.model)
+
+    model_o.to(device)
+    model_t.to(device)
+
+    model_o.eval()
+    model_t.eval()
+
+    correct = []
+    head_correct = []
+    with torch.no_grad():
+        for x, y in client.train_loader:
+            x = x.to(device)
+            y = y.to(device)
+            outputs = model_t(x)
+            y_max_scores, y_max_idx = outputs.max(dim=1)
+            correct.append((y == y_max_idx).sum().item())
+
+            head = model_t.projection_head(x)
+            y_head_max_scores, y_head_max_idx = head.max(dim=1)
+            head_correct.append((y == y_head_max_idx).sum().item())
+
+        acc = sum(correct) / len(client.train)
+        head_acc = sum(head_correct) / len(client.train)
+
+        summary_writer.add_scalar('client_{}/accuracy_eval/local'.format(client.name), acc, client.epoch_counter)
+        summary_writer.add_scalar('client_{}/accuracy_head/local'.format(client.name), head_acc, client.epoch_counter)
+
+    correct = []
+    head_correct = []
+
+    with torch.no_grad():
+        for x, y in client.train_loader:
+            x = x.to(device)
+            y = y.to(device)
+            outputs = model_o(x)
+            y_max_scores, y_max_idx = outputs.max(dim=1)
+            correct.append((y == y_max_idx).sum().item())
+
+            head = model_o.projection_head(x)
+            y_head_max_scores, y_head_max_idx = head.max(dim=1)
+            head_correct.append((y == y_head_max_idx).sum().item())
+
+        acc = sum(correct) / len(client.train)
+        head_acc = sum(head_correct) / len(client.train)
+
+        summary_writer.add_scalar('client_{}/accuracy_eval/global'.format(client.name), acc, client.epoch_counter)
+        summary_writer.add_scalar('client_{}/accuracy_head/global'.format(client.name), head_acc, client.epoch_counter)
+
+    del model_o
 
 # TODO: Need to be fixed.
 # New Modification 22.07.20
