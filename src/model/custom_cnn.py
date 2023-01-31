@@ -47,12 +47,27 @@ class CustomCNN(Module):
                 ReLU(),
                 Linear(84, num_classes)
             )
+        self.projection_header = Linear(16*5*5, num_classes)
 
     def forward(self, x):
         x = self.features(x)
         x = torch.flatten(x, 1)
         x = self.fc(x)
         return x
+
+    def get_feature_maps(self, x):
+        with torch.no_grad():
+            x = self.features(x)
+            x = torch.flatten(x, 1)
+            x = F.softmax(x, dim=1)
+        return x
+
+    def projection_head(self, x):
+        x = self.features(x)
+        x = torch.flatten(x, 1)
+        logit = self.projection_header(x)
+        # out = F.softmax(logit, dim=1)
+        return logit
 
 # class CustomCNN(FederatedModel):
 #     def __init__(self, num_classes: int = 10, b_global: bool = False, **kwargs):
