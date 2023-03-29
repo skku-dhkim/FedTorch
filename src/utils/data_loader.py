@@ -42,7 +42,12 @@ class CustomDataLoader:
         c_dist = pd.DataFrame(s)
 
         # Round for data division convenience.
-        c_dist = c_dist.round(3)
+        c_dist = c_dist.round(2)
+        while len(c_dist.columns[(c_dist == 0).all()]) > 0:
+            s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
+            c_dist = pd.DataFrame(s)
+            # Round for data division convenience.
+            c_dist = c_dist.round(2)
 
         sns.set(rc={'figure.figsize': (20, 20)})
         ax = sns.heatmap(c_dist, cmap='YlGnBu', annot=False)
