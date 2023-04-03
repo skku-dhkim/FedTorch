@@ -14,11 +14,15 @@ class Client:
 
         # Data settings
         self.train = data['train']
-        self.train_loader = DataLoader(self.train,
-                                       batch_size=batch_size, shuffle=True, drop_last=False)
+        if len(self.train) < batch_size:
+            self.train_loader = DataLoader(self.train,
+                                           batch_size=batch_size, drop_last=False)
+        else:
+            self.train_loader = DataLoader(self.train,
+                                           batch_size=batch_size, shuffle=True, drop_last=False)
         self.test = data['test']
         self.test_loader = DataLoader(self.test,
-                                      batch_size=batch_size, shuffle=False)
+                                      batch_size=batch_size, shuffle=False, drop_last=False)
 
         # Training settings
         self.global_iter = []
@@ -45,3 +49,14 @@ class Client:
     #         result[k] = score
     #         self.summary_writer.add_scalar("{}/{}".format(name, k), score, self.global_iter)
     #     return result
+
+
+# class FedKL_Client(Client):
+#     def __init__(self,
+#                  client_name: str,
+#                  data: dict,
+#                  batch_size: int,
+#                  log_path: str):
+#         super().__init__(client_name, data, batch_size, log_path)
+#         self.F_entropy_gap = None
+#         self.O_entropy_gap = None

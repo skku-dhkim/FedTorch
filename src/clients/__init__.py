@@ -28,5 +28,6 @@ __all__ = [
     "SummaryWriter",
     'OrderedDict',
     'Client',
-    'Aggregator'
+    'Aggregator',
+    # 'FedKL_Client'
 ]
