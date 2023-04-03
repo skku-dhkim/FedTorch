@@ -45,20 +45,26 @@ def min_max_normalization(input_tensor: torch.Tensor,
     return output
 
 
-def entropy(input_tensor: torch.Tensor, base: Union[int, str] = 2, normalize: bool = False) -> torch.Tensor:
+def entropy(input_tensor: torch.Tensor, base: Union[int, str] = 2,
+            normalize: bool = False, prob: bool = True) -> torch.Tensor:
     """
 
     Args:
         input_tensor: (torch.Tensor) Input tensor; should be form as probability tensor.
         base: (Union[int, str]) Log type. Either base 2 log or ln.
         normalize: (boolean) Returns normalized entropy or not.
+        prob: (boolean) Whether input tensor is probability distribution or not. Default is True.
 
     Returns: (torch.Tensor) Entropy of input tensor that normalized or original .
 
     """
     if base == 2:
+        if not prob:
+            input_tensor = get_probability(input_tensor, logit=False)
         output = -torch.sum(input_tensor*torch.nan_to_num(torch.log2(input_tensor+1e-7)), dim=-1)
     else:
+        if not prob:
+            input_tensor = get_probability(input_tensor, logit=True)
         output = -torch.sum(input_tensor*torch.nan_to_num(torch.log(input_tensor+1e-7)), dim=-1)
     if normalize:
         max_entr = max_entropy(input_tensor, base=base)
@@ -165,15 +171,16 @@ def loss_fn_kd(input_distribution: torch.Tensor, target_distribution: torch.Tens
     return torch.nan_to_num(KD_loss)
 
 
-def one_hot_encode(labels: torch.Tensor, num_classes: int) -> torch.Tensor:
+def one_hot_encode(labels: torch.Tensor, num_classes: int, device: torch.device) -> torch.Tensor:
     """
     Do one-hot encoding for labels.
     Args:
         labels: (torch.Tensor) Label tensor.
         num_classes: (int) number of classes of data.
+        device: (torch.device) In-memory device.
     Returns: (torch.Tensor) one_hot encoded tensor.
     """
-    one_hot = torch.zeros(labels.size(0), num_classes)
+    one_hot = torch.zeros(labels.size(0), num_classes, device=device)
     one_hot.scatter_(1, labels.unsqueeze(1), 1)
     return one_hot
 

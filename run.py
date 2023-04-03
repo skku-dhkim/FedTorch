@@ -4,7 +4,7 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg, FedKL
+from src.methods import FedAvg, FedKL, FedIndi
 
 import argparse
 import os
@@ -31,14 +31,14 @@ if __name__ == '__main__':
 
     # Training settings
     parser.add_argument('--opt', type=str, default='SGD')
-    parser.add_argument('--batch', type=int, default=64)
-    parser.add_argument('--local_iter', type=int, default=10)
+    parser.add_argument('--batch', type=int, default=50)
+    parser.add_argument('--local_iter', type=int, default=5)
     parser.add_argument('--global_iter', type=int, default=50)
     parser.add_argument('--local_lr', type=float, default=0.01)
     parser.add_argument('--global_lr', type=float, default=1.0)
-    parser.add_argument('--momentum', type=float, default=0.0)
+    parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--sample_ratio', type=float, default=1.0)
-
+    parser.add_argument('--T', type=float, default=1.0)
     #parser.add_argument('--var_client', type=list, default=[])
 
     # Logs settings
@@ -99,7 +99,11 @@ if __name__ == '__main__':
         'use_gpu': args.gpu,
         'gpu_frac': args.gpu_frac,
         'summary_count': args.summary_count,
-        'sample_ratio': args.sample_ratio
+        'sample_ratio': args.sample_ratio,
+        'temperature': args.T,
+        'weight_decay': 1e-5,
+        'kl_temp': 2,
+        'indicator_temp': 1,
     }
 
     write_experiment_summary("Client Setting", client_settings)
@@ -112,6 +116,9 @@ if __name__ == '__main__':
         # INFO: Run Function
         # TODO: Make additional Federated method
         FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        # FedIndi.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        # FedAvg.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+
     except Exception as e:
         system_logger.error(traceback.format_exc())
         raise Exception(traceback.format_exc())

@@ -1,6 +1,6 @@
 from src import *
 from src.utils import *
-from src.methods import *
+from src.methods import get_logger, LOGGER_DICT, Aggregator
 
 
 def data_preprocessing(client_settings: dict) -> Tuple[list, DataLoader, DataLoader]:
@@ -24,9 +24,9 @@ def data_preprocessing(client_settings: dict) -> Tuple[list, DataLoader, DataLoa
     return fed_dataset, valid_loader, test_loader
 
 
-def client_initialize(fed_dataset: list, valid_loader: DataLoader, test_loader: DataLoader,
+def client_initialize(client, fed_dataset: list, valid_loader: DataLoader, test_loader: DataLoader,
                       client_settings: dict, train_settings: dict) -> Tuple[Dict[str, Any], Aggregator]:
-    import ray
+    # import ray
     stream_logger, _ = get_logger(LOGGER_DICT['stream'])
     summary_logger, _ = get_logger(LOGGER_DICT['summary'])
     # INFO - Create client instances
@@ -35,7 +35,7 @@ def client_initialize(fed_dataset: list, valid_loader: DataLoader, test_loader: 
         start = time.time()
         clients = {}
         for _id, data in enumerate(fed_dataset):
-            clients[str(_id)] = Client(str(_id),
+            clients[str(_id)] = client(str(_id),
                                        data,
                                        batch_size=train_settings['batch_size'],
                                        log_path=LOGGER_DICT['path'])
@@ -90,5 +90,3 @@ def save_model(clients: dict):
             'client_name': client.name,
             'model': client.model
         }, save_path)
-
-

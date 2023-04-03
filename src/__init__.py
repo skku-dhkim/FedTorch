@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.parameter import Parameter
-from typing import Union, Optional, Tuple, Dict, Any, List
+from typing import Union, Optional, Tuple, Dict, Any, List, Callable
 from collections import OrderedDict
 
 import os
@@ -14,7 +14,7 @@ __all__ = [
     'Dataset',
     'DataLoader',
     'Parameter',
-    'Union', 'Optional', 'Tuple', 'Dict', 'Any', 'List',
+    'Union', 'Optional', 'Tuple', 'Dict', 'Any', 'List', 'Callable',
     'OrderedDict',
     'os',
     'np',
