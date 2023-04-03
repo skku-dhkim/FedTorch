@@ -59,7 +59,6 @@ def entropy(input_tensor: torch.Tensor, base: Union[int, str] = 2, normalize: bo
     if base == 2:
         output = -torch.sum(input_tensor*torch.nan_to_num(torch.log2(input_tensor+1e-7)), dim=-1)
     else:
-
         output = -torch.sum(input_tensor*torch.nan_to_num(torch.log(input_tensor+1e-7)), dim=-1)
     if normalize:
         max_entr = max_entropy(input_tensor, base=base)
@@ -126,40 +125,24 @@ def mean_mean(input_tensor: torch.Tensor) -> torch.Tensor:
     return output
 
 
-def l1_norm(input_tensor: torch.Tensor, logit: bool = False) -> torch.Tensor:
+def calc_norm(input_tensor: torch.Tensor, logit: bool = False, p: int = 1) -> torch.Tensor:
     """
-    Calculate the L1 norm from input tensor
+    Calculate the norm from input tensor.
+    Type of norm is related with p parameter value.
     Args:
         input_tensor: (torch.Tensor) Input tensors to calculate the l1-norm
-        logit: (boolean) Check either logit or not.
+        logit: (boolean) Check either logit or not. Default is False.
+        p: (int) Value of norm. Default value is 1.
 
     Returns: (torch.Tensor) output of input norm
 
     """
     if logit:
         input_tensor = torch.flatten(input_tensor, 1)
-        output = input_tensor.norm(p=1, dim=1)
+        output = input_tensor.norm(p=p, dim=1)
     else:
         input_tensor = torch.flatten(input_tensor, 2)
-        output = input_tensor.norm(p=1, dim=2)
-    return output
-
-
-def l2_norm(input_tensor: torch.Tensor, logit: bool = False):
-    """
-    Calculate the L2 norm from input tensor
-    Args:
-        input_tensor: (torch.Tensor) Input tensors to calculate the l1-norm
-        logit: (boolean) Check either logit or not.
-
-    Returns: (torch.Tensor) output of input norm
-    """
-    if logit:
-        input_tensor = torch.flatten(input_tensor, 1)
-        output = input_tensor.norm(p=2, dim=1)
-    else:
-        input_tensor = torch.flatten(input_tensor, 2)
-        output = input_tensor.norm(p=2, dim=2)
+        output = input_tensor.norm(p=p, dim=2)
     return output
 
 
@@ -194,3 +177,64 @@ def one_hot_encode(labels: torch.Tensor, num_classes: int) -> torch.Tensor:
     one_hot.scatter_(1, labels.unsqueeze(1), 1)
     return one_hot
 
+
+def calculate_entropy_gap(tensor_a: torch.Tensor, tensor_b: torch.Tensor,
+                          logit: bool = False, normalize: bool = True) -> torch.Tensor:
+    """
+    Calculate the entropy gap between local and global tensor.
+    Args:
+        tensor_a: (torch.Tensor) Input tensor A
+        tensor_b: (torch.Tensor) Input tensor B
+        logit: (bool) Flag parameter to check logit or not.
+        normalize: (bool) Flag parameter to check normalization activation.
+
+    Returns: (torch.Tensor) Entropy gap between two tensors.
+
+    """
+    # INFO: Calculates entropy gap
+    # Get probability
+    prob_a = get_probability(tensor_a, logit=logit)
+    prob_b = get_probability(tensor_b, logit=logit)
+
+    if logit:
+        entropy_a = entropy(prob_a, base='exp')
+        entropy_b = entropy(prob_b, base='exp')
+    else:
+        entropy_a = entropy(prob_a)
+        entropy_b = entropy(prob_b)
+
+    # INFO: Calculates the entropy gap
+    # NOTE: Need to check whither sign affect the result or not.
+    entropy_gap = torch.abs(entropy_b - entropy_a)
+
+    if normalize:
+        entropy_gap = min_max_normalization(entropy_gap)
+
+    return entropy_gap
+
+
+def calculate_norm_gap(tensor_a: torch.Tensor, tensor_b: torch.Tensor,
+                       logit: bool = False, normalize: bool = True, prob: bool = False, p: int = 1) -> torch.Tensor:
+    """
+    Calculate the norm gap between two tensors.
+    Args:
+        tensor_a: (torch.Tensor) Input tensor A
+        tensor_b: (torch.Tensor) Input tensor B
+        logit: (bool) Flag that check logit or not.
+        normalize: (bool) Flag parameter check to normalization.
+        prob: (bool) Flag parameter to make probability distribution.
+        p: (int) Represent the type of norm. Default value is 1.
+
+    Returns:
+
+    """
+    # INFO: Make probability if 'prob' is True.
+    if prob:
+        tensor_a = get_probability(tensor_a, logit=logit)
+        tensor_b = get_probability(tensor_b, logit=logit)
+
+    # INFO: Calculates norm gap
+    norm_gap = calc_norm(tensor_b - tensor_a, logit=logit, p=p)
+    if normalize:
+        norm_gap = min_max_normalization(norm_gap)
+    return norm_gap

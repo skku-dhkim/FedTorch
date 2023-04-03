@@ -1,12 +1,8 @@
-import copy
-
-from . import call_optimizer
 from src import *
-from src.model import model_call
-from src.clients import Client, Aggregator
+from src.clients import Aggregator
 from torch.nn import Module
-from torch import nn
 from torch.utils.tensorboard import SummaryWriter
+from src.train.train_utils import *
 
 import random
 import ray
@@ -15,27 +11,23 @@ import torch
 
 def model_download(aggregator: Aggregator, clients: dict) -> None:
     """
-
+    Client download the model from the aggregator.
     Args:
-        aggregator: (Aggregator class)
-        clients: (dict) client list of Ray Client Actor.
-
+        aggregator: (class Aggregator) Model aggregator for federated learning.
+        clients: (dict) client list of Client class.
     Returns: None
-
     """
     model_weights = aggregator.get_parameters()
     for k, client in clients.items():
         client.model = model_weights
-    # TODO: Deprecate on next version.
-    # ray.get([client.set_parameters.remote(model_weights) for _, client in clients.items()])
 
 
 def model_collection(clients: dict, aggregator: Aggregator, with_data_len: bool = False) -> None:
     """
-
+    Clients uploads each model to aggregator.
     Args:
-        clients: (dict) {str: ray Client Actor}
-        aggregator: (Aggregator)
+        clients: (dict) {str: Client class} form.
+        aggregator: (Aggregator) Aggregator class.
         with_data_len: (bool) Data length return if True.
 
     Returns: None
@@ -47,18 +39,23 @@ def model_collection(clients: dict, aggregator: Aggregator, with_data_len: bool 
             collected_weights[k] = {'weights': client.get_parameters(),
                                     'data_len': client.data_len()}
         else:
-            collected_weights[k] = client.get_parameters()
+            collected_weights[k] = {'weights': client.get_parameters()}
     aggregator.collected_weights = collected_weights
 
 
-def compute_accuracy(model: Module, loss_fn: nn, data_loader: DataLoader):
+def compute_accuracy(model: Module, data_loader: DataLoader, loss_fn: Optional[Module] = None) -> Union[float, tuple]:
     """
-    Compute the accuracy using its test dataloader.
-    Returns:
-        (float) training_acc: Training accuracy of client's test data.
+    Compute the accuracy using its whole data.
+
+    Args:
+        model: (torch.Module) Training model.
+        data_loader: (torch.utils.Dataloader) Dataloader.
+        loss_fn: (torch.Module) Optional. Loss function.
+
+    Returns: ((float) accuracy, (float) loss)
+
     """
-    # TODO: Need to check is_available() is allowed.
-    device = "cuda" if torch.cuda.is_available() is True else "cpu"
+    device = "cpu"
 
     model.to(device)
     model.eval()
@@ -72,207 +69,256 @@ def compute_accuracy(model: Module, loss_fn: nn, data_loader: DataLoader):
             x = x.to(device)
             y = y.to(device)
             outputs = model(x)
-            loss = loss_fn(outputs, y)
-            loss_list.append(loss.item())
+            if loss_fn is not None:
+                loss = loss_fn(outputs, y)
+                loss_list.append(loss.item())
             y_max_scores, y_max_idx = outputs.max(dim=1)
             correct.append((y == y_max_idx).sum().item())
             total_len.append(len(x))
         acc = sum(correct) / sum(total_len)
-        loss = sum(loss_list) / sum(total_len)
-    return acc, loss
 
-
-@ray.remote(max_calls=1)
-def train(
-        client: Client,
-        training_settings: dict,
-        num_of_classes: int,
-        early_stopping: bool = False):
-    # TODO: Need to check is_available() is allowed.
-    device = "cuda" if torch.cuda.is_available() is True else "cpu"
-
-    # INFO: Unblock the code if you use M1 GPU
-    # device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
-
-    summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
-
-    # INFO - Call the model architecture and set parameters.
-    model = model_call(training_settings['model'], num_of_classes)
-    model.load_state_dict(client.model)
-    model = model.to(device)
-
-    # INFO - Optimizer
-    optimizer = call_optimizer(training_settings['optim'])
-
-    # INFO - Optimizations
-    if training_settings['optim'].lower() == 'sgd':
-        optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
-                          lr=training_settings['local_lr'],
-                          momentum=training_settings['momentum'])
-    else:
-        optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
-                          lr=training_settings['local_lr'])
-
-    # if early_stopping:
-    #     # TODO: patience value may be the hyperparameter.
-    #     early_stop = EarlyStopping(patience=5, summary_path=client_info['summary_path'], delta=0)
-    # else:
-    #     early_stop = None
-
-    loss_fn = torch.nn.CrossEntropyLoss().to(device)
-
-    # INFO: Local training logic
-    for _ in range(training_settings['local_epochs']):
-        training_loss = 0
-        summary_counter = 0
-
-        # INFO: Training steps
-        for x, y in client.train_loader:
-            inputs = x.to(device)
-            labels = y.to(device)
-
-            model.train()
-            model.to(device)
-
-            optim.zero_grad()
-
-            outputs = model(inputs)
-            loss = loss_fn(outputs, labels)
-
-            loss.backward()
-            optim.step()
-
-            # INFO - Step summary
-            training_loss += loss.item()
-
-            client.step_counter += 1
-            summary_counter += 1
-
-            if summary_counter % training_settings["summary_count"] == 0:
-                training_acc, _ = compute_accuracy(model, loss_fn, client.train_loader)
-                summary_writer.add_scalar('step_loss', training_loss / summary_counter, client.step_counter)
-                summary_writer.add_scalar('step_acc', training_acc, client.step_counter)
-                summary_counter = 0
-                training_loss = 0
-
-        # INFO - Epoch summary
-        test_acc, test_loss = compute_accuracy(model, loss_fn, client.test_loader)
-        train_acc, train_loss = compute_accuracy(model, loss_fn, client.train_loader)
-
-        summary_writer.add_scalar('epoch_loss/train', train_loss, client.epoch_counter)
-        summary_writer.add_scalar('epoch_loss/test', test_loss, client.epoch_counter)
-
-        summary_writer.add_scalar('epoch_acc/local_train', train_acc, client.epoch_counter)
-        summary_writer.add_scalar('epoch_acc/local_test', test_acc, client.epoch_counter)
-
-        mark_accuracy(client, model, summary_writer)
-        # mark_entropy(client, model, summary_writer)
-
-        client.epoch_counter += 1
-
-    # INFO - Local model update
-    client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
-    return client
-
-
-def local_training(clients: list,
-                   training_settings: dict,
-                   num_of_class: int) -> list:
-    """
-    Args:
-        clients: (dict) client ID and Object pair
-        training_settings: (dict) Training setting dictionary
-        num_of_class: (int) Number of classes
-    Returns: (List) Client Object result
-
-    """
-    # sampled_clients = random.sample(list(clients.values()), k=int(len(clients.keys()) * sample_ratio))
-    ray_jobs = []
-    for client in clients:
-        if training_settings['use_gpu']:
-            ray_jobs.append(train.options(num_gpus=training_settings['gpu_frac']).remote(client,
-                                                                                         training_settings,
-                                                                                         num_of_class))
+        if loss_fn is not None:
+            loss = sum(loss_list) / sum(total_len)
+            return acc, loss
         else:
-            ray_jobs.append(train.options().remote(client,
-                                                   training_settings,
-                                                   num_of_class))
-    trained_result = []
-    while len(ray_jobs):
-        done_id, ray_jobs = ray.wait(ray_jobs)
-        trained_result.append(ray.get(done_id[0]))
-
-    return trained_result
+            return acc
 
 
-def client_sampling(clients: dict, sample_ratio: float, global_round: int):
+def client_sampling(clients: dict, sample_ratio: float, global_round: int) -> list:
+    """
+    Sampling the client from total clients.
+    Args:
+        clients: (dict) Clients dictionary that have all the client instances.
+        sample_ratio: (float) Sample ration.
+        global_round: (int) Current global round.
+
+    Returns: (list) Sample 'client class'
+
+    """
     sampled_clients = random.sample(list(clients.values()), k=int(len(clients.keys()) * sample_ratio))
     for client in sampled_clients:
+        # NOTE: I think it is purpose to check what clients are joined corresponding global iteration.
         client.global_iter.append(global_round)
     return sampled_clients
 
 
-def update_client_dict(clients: dict, trained_client: list):
+def update_client_dict(clients: dict, trained_client: list) -> dict:
+    """
+    Updates the client dictionary. Only trained client are updated.
+    Args:
+        clients: (dict) Clients dictionary.
+        trained_client: (list) Trained clients.
+
+    Returns: (dict) Clients dictionary.
+
+    """
     for client in trained_client:
         clients[client.name] = client
     return clients
 
 
-def mark_accuracy(client: Client, model_t: Module, summary_writer: SummaryWriter):
-    # TODO: Need to check is_available() is allowed.
-    device = "cuda" if torch.cuda.is_available() is True else "cpu"
+def mark_accuracy(model_l: Module, model_g: Module, dataloader: DataLoader,
+                  summary_writer: SummaryWriter, tag: str, epoch: int) -> None:
+    """
+    Accuracy mark for experiment.
+    Args:
+        model_l: (torch.Module) Local model.
+        model_g: (torch.Module) Global model.
+        dataloader: (DataLoader) Client's dataloader.
+        summary_writer: (SummaryWriter class) SummaryWriter instance.
+        tag: (str) Summary tag.
+        epoch: (str) Client epochs.
 
-    model_o = copy.deepcopy(model_t)
-    model_o.load_state_dict(client.model)
+    Returns: (None)
 
-    model_o.to(device)
-    model_t.to(device)
+    """
+    device = "cpu"
 
-    model_o.eval()
-    model_t.eval()
+    model_l.to(device)
+    model_g.to(device)
 
-    correct = []
-    head_correct = []
+    model_l.eval()
+    model_g.eval()
+
+    accuracy_l = compute_accuracy(model_l, dataloader)
+    accuracy_g = compute_accuracy(model_g, dataloader)
+
+    summary_writer.add_scalar('{}/accuracy/local_model'.format(tag), accuracy_l, epoch)
+    summary_writer.add_scalar('{}/accuracy/global_model'.format(tag), accuracy_g, epoch)
+
+
+def mark_entropy(model_l: Module, model_g: Module, dataloader: DataLoader,
+                 summary_writer: SummaryWriter, epoch: int) -> None:
+    """
+    Mark the entropy and entropy gap from certain dataloader.
+    Args:
+        model_l: (torch.Module) Local Model
+        model_g: (torch.Module) Global Model
+        dataloader: (DataLoader) Dataloader either train or test.
+        summary_writer: (SummaryWriter) SummaryWriter object.
+        epoch: (int) Current global round.
+
+    Returns: (None)
+
+    """
+    device = "cpu"
+    model_l.to(device)
+    model_g.to(device)
+
+    model_l.eval()
+    model_g.eval()
+
+    output_entropy_l_list = []
+    output_entropy_g_list = []
+    feature_entropy_l_list = []
+    feature_entropy_g_list = []
+
+    output_gap_list = []
+    feature_gap_list = []
+
     with torch.no_grad():
-        for x, y in client.train_loader:
+        for x, _ in dataloader:
             x = x.to(device)
-            y = y.to(device)
-            outputs = model_t(x)
-            y_max_scores, y_max_idx = outputs.max(dim=1)
-            correct.append((y == y_max_idx).sum().item())
+            outputs_l = model_l(x)
+            outputs_g = model_g(x)
 
-            head = model_t.projection_head(x)
-            y_head_max_scores, y_head_max_idx = head.max(dim=1)
-            head_correct.append((y == y_head_max_idx).sum().item())
+            features_l = model_l.feature_maps(x)
+            features_g = model_g.feature_maps(x)
 
-        acc = sum(correct) / len(client.train)
-        head_acc = sum(head_correct) / len(client.train)
+            # INFO: Calculates entropy gap
+            # INFO: Output
+            # Probability distributions
+            output_prob_l = get_probability(outputs_l, logit=True)
+            output_prob_g = get_probability(outputs_g, logit=True)
 
-        summary_writer.add_scalar('client_{}/accuracy_eval/local'.format(client.name), acc, client.epoch_counter)
-        summary_writer.add_scalar('client_{}/accuracy_head/local'.format(client.name), head_acc, client.epoch_counter)
+            # INFO: Output entropy
+            output_entr_l = entropy(output_prob_l, base='exp')
+            output_entr_g = entropy(output_prob_g, base='exp')
 
-    correct = []
-    head_correct = []
+            # Insert the original output entropy value
+            output_entropy_l_list.append(torch.mean(output_entr_l))
+            output_entropy_g_list.append(torch.mean(output_entr_g))
+
+            # INFO: Calculates the entropy gap
+            outputs_entr_gap = torch.abs(output_entr_g - output_entr_l)
+            output_gap_list.append(torch.mean(outputs_entr_gap))
+
+            # INFO: Feature
+            # Probability distributions
+            feature_prob_l = get_probability(features_l)
+            feature_prob_g = get_probability(features_g)
+
+            # Calculate the entropy
+            feature_entr_l = entropy(feature_prob_l)
+            feature_entr_g = entropy(feature_prob_g)
+
+            # Insert the value
+            feature_entropy_l_list.append(sum_mean(feature_entr_l))
+            feature_entropy_g_list.append(sum_mean(feature_entr_g))
+
+            # INFO: Calculates the entropy gap
+            feature_entr_gap = torch.abs(feature_entr_g - feature_entr_l)
+            feature_gap_list.append(sum_mean(feature_entr_gap))
+
+    output_entropy_l = torch.Tensor(output_entropy_l_list)
+    output_entropy_g = torch.Tensor(output_entropy_g_list)
+    feature_entropy_l = torch.Tensor(feature_entropy_l_list)
+    feature_entropy_g = torch.Tensor(feature_entropy_g_list)
+
+    summary_writer.add_scalar("entropy/feature/local", torch.mean(feature_entropy_l), epoch)
+    summary_writer.add_scalar("entropy/feature/global", torch.mean(feature_entropy_g), epoch)
+    summary_writer.add_scalar("entropy/classifier/local", torch.mean(output_entropy_l), epoch)
+    summary_writer.add_scalar("entropy/classifier/global", torch.mean(output_entropy_g), epoch)
+
+    output_gap = torch.Tensor(output_gap_list)
+    feature_gap = torch.Tensor(feature_gap_list)
+    summary_writer.add_scalar("entropy_gap/classifier", torch.mean(output_gap), epoch)
+    summary_writer.add_scalar("entropy_gap/feature", torch.mean(feature_gap), epoch)
+
+
+def mark_norm_gap(model_l: Module, model_g: Module, dataloader: DataLoader,
+                  summary_writer: SummaryWriter, epoch: int, norm: int = 1, prob: bool = False) -> None:
+    """
+    Mark the norm gap from certain dataloader.
+    Args:
+        model_l: (torch.Module) Local Model
+        model_g: (torch.Module) Global Model
+        dataloader: (DataLoader) Dataloader either train or test.
+        summary_writer: (SummaryWriter) SummaryWriter object.
+        epoch: (int) Current global round.
+        norm: (int) Level of norm value. Default is 1.
+        prob: (bool) To check to use probability form when calculate the norm.
+
+    Returns: (None)
+
+    """
+    device = "cpu"
+    model_l.to(device)
+    model_g.to(device)
+
+    model_l.eval()
+    model_g.eval()
+
+    outputs_norm_gap_list = []
+    features_norm_gap_list = []
 
     with torch.no_grad():
-        for x, y in client.train_loader:
+        for x, _ in dataloader:
             x = x.to(device)
-            y = y.to(device)
-            outputs = model_o(x)
-            y_max_scores, y_max_idx = outputs.max(dim=1)
-            correct.append((y == y_max_idx).sum().item())
+            outputs_l = model_l(x)
+            outputs_g = model_g(x)
 
-            head = model_o.projection_head(x)
-            y_head_max_scores, y_head_max_idx = head.max(dim=1)
-            head_correct.append((y == y_head_max_idx).sum().item())
+            features_l = model_l.feature_maps(x)
+            features_g = model_g.feature_maps(x)
 
-        acc = sum(correct) / len(client.train)
-        head_acc = sum(head_correct) / len(client.train)
+            # INFO: Calculates entropy gap
 
-        summary_writer.add_scalar('client_{}/accuracy_eval/global'.format(client.name), acc, client.epoch_counter)
-        summary_writer.add_scalar('client_{}/accuracy_head/global'.format(client.name), head_acc, client.epoch_counter)
+            # INFO: Output
+            # Probability distributions
+            if prob:
+                outputs_l = get_probability(outputs_l, logit=True)
+                outputs_g = get_probability(outputs_g, logit=True)
 
-    del model_o
+                features_l = get_probability(features_l)
+                features_g = get_probability(features_g)
+
+            # INFO: Calculates norm gap
+            outputs_norm_gap = calc_norm(outputs_g - outputs_l, logit=True, p=norm)
+            features_norm_gap = calc_norm(features_g - features_l, p=norm)
+
+            outputs_norm_gap_list.append(torch.mean(outputs_norm_gap))
+            features_norm_gap_list.append(sum_mean(features_norm_gap))
+
+    outputs_gap = torch.Tensor(outputs_norm_gap_list)
+    features_gap = torch.Tensor(features_norm_gap_list)
+
+    if prob:
+        summary_writer.add_scalar("norm_gap/l{}-probability/feature".format(norm), torch.mean(outputs_gap), epoch)
+        summary_writer.add_scalar("norm_gap/l{}-probability/classifier".format(norm), torch.mean(features_gap), epoch)
+    else:
+        summary_writer.add_scalar("norm_gap/l{}/feature".format(norm), torch.mean(outputs_gap), epoch)
+        summary_writer.add_scalar("norm_gap/l{}/classifier".format(norm), torch.mean(features_gap), epoch)
+
+
+# TODO: Need to check it is surely works.
+def kl_indicator(local_tensor, global_tensor, logit=False, alpha=1):
+    # INFO: Calculates entropy gap
+    entr_gap = calculate_entropy_gap(local_tensor, global_tensor, logit=logit)
+
+    # INFO: Calculates norm gap
+    l1_norm_gap = calculate_norm_gap(local_tensor, global_tensor, logit=logit)
+
+    if logit:
+        entr_gap = torch.mean(entr_gap)
+        l1_norm_gap = torch.mean(l1_norm_gap)
+    else:
+        # Mean of feature maps and then batch.
+        entr_gap = mean_mean(entr_gap)
+        l1_norm_gap = mean_mean(l1_norm_gap)
+
+    indicator = torch.sqrt(l1_norm_gap / (1 + alpha * entr_gap)).detach()
+    return torch.nan_to_num(indicator)
+
 
 # TODO: Need to be fixed.
 # New Modification 22.07.20
