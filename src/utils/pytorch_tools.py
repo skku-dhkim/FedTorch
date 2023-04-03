@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import os
 
-from src.utils.logger import get_file_logger
+from src.utils.logger import get_logger, LOGGER_DICT
 from datetime import datetime
 
 
@@ -32,9 +32,10 @@ class EarlyStopping:
         self.delta = delta
         self.path = summary_path
 
-        self.system_logger = get_file_logger("system_logger[{}]".format(__name__),
-                                             os.path.join("./logs", "program_log_{}.log".format(datetime.today().date())),
-                                             "INFO")
+        self.system_logger, name = get_logger("system_logger.{}".format(__name__),
+                                              os.path.join("./logs", "program_log_{}.log".format(datetime.today().date())),
+                                              "INFO")
+        LOGGER_DICT[name] = name
 
     def __call__(self, val_loss, model):
 

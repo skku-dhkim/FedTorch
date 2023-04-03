@@ -10,9 +10,10 @@ import coloredlogs
 import logging
 import os
 
-from conf.logger_config import field_styles, level_styles
+from conf.logger_config import field_styles, level_styles, LOGGER_DICT
+from typing import Optional, Tuple
 
-level_dict = {
+LEVEL_DICT = {
     'DEBUG': logging.DEBUG,
     'INFO': logging.INFO,
     'WARNING': logging.WARNING,
@@ -34,40 +35,95 @@ class FedTorchFileHandler(logging.FileHandler):
         logging.FileHandler.__init__(self, filename, mode, encoding, delay)
 
 
-def get_stream_logger(name, level: str = "DEBUG"):
-    if level.upper() not in level_dict.keys():
+# def get_stream_logger(name, level: str = "DEBUG"):
+#     if level.upper() not in level_dict.keys():
+#         raise ValueError("Invalid Logger level. You got: '{}'".format(level))
+#     name = "ST_{}".format(name)
+#     logger = logging.getLogger(name)
+#
+#     s_logger = logging.StreamHandler()
+#     s_logger.setLevel(level_dict[level.upper()])
+#
+#     formatter = coloredlogs.ColoredFormatter('%(asctime)s,%(msecs)03d %(name)s[%(process)d] %(levelname)s %(message)s',
+#                                              field_styles=field_styles,
+#                                              level_styles=level_styles)
+#     s_logger.setFormatter(formatter)
+#
+#     logger.addHandler(s_logger)
+#     logger.setLevel(level_dict[level.upper()])
+#     logger.propagate = False
+#     return logger
+#
+#
+# def get_file_logger(name, log_path, level: str = "DEBUG"):
+#     if level.upper() not in level_dict.keys():
+#         raise ValueError("Invalid Logger level. You got: '{}'".format(level))
+#     logger = logging.getLogger(name)
+#
+#     f_logger = FedTorchFileHandler(filename=log_path)
+#     f_logger.setLevel(level_dict[level])
+#
+#     formatter = logging.Formatter('%(asctime)s,%(msecs)03d %(name)s[%(process)d] %(levelname)s %(message)s')
+#     f_logger.setFormatter(formatter)
+#
+#     logger.addHandler(f_logger)
+#     logger.setLevel(level_dict[level])
+#     logger.propagate = False
+#
+#     return logger
+
+
+def get_logger(name: str,
+               log_path: Optional[str] = None,
+               level: str = "DEBUG",
+               log_type: str = "stream") -> Tuple[logging.Logger, str]:
+
+    if level.upper() not in LEVEL_DICT.keys():
         raise ValueError("Invalid Logger level. You got: '{}'".format(level))
-    name = "ST_{}".format(name)
-    logger = logging.getLogger(name)
 
-    s_logger = logging.StreamHandler()
-    s_logger.setLevel(level_dict[level.upper()])
+    # INFO: Check Logger if exists.
+    if name in logging.Logger.manager.loggerDict:
+        return logging.getLogger(name), name
 
-    formatter = coloredlogs.ColoredFormatter('%(asctime)s,%(msecs)03d %(name)s[%(process)d] %(levelname)s %(message)s',
-                                             field_styles=field_styles,
-                                             level_styles=level_styles)
-    s_logger.setFormatter(formatter)
+    if log_type == "file":
+        if log_path is not None:
+            name = "fedtorch.file.{}".format(name)
+            logger = logging.getLogger(name)
 
-    logger.addHandler(s_logger)
-    logger.setLevel(level_dict[level.upper()])
-    logger.propagate = False
+            log_handler = FedTorchFileHandler(filename=log_path)
+            log_handler.setLevel(LEVEL_DICT[level])
 
-    return logger
+            formatter = logging.Formatter('[%(asctime)s,%(msecs)03d] %(name)s[%(process)d] [%(levelname)s] %(message)s')
+            log_handler.setFormatter(formatter)
+
+            logger.addHandler(log_handler)
+            logger.setLevel(LEVEL_DICT[level])
+            logger.propagate = False
+            return logger, name
+        else:
+            raise ValueError("Log path is required for log type \'file\'.")
+    else:
+        name = "fedtorch.stream.{}".format(name)
+
+        logger = logging.getLogger(name)
+
+        log_handler = logging.StreamHandler()
+        log_handler.setLevel(LEVEL_DICT[level.upper()])
+
+        formatter = coloredlogs.ColoredFormatter(
+            '[%(asctime)s,%(msecs)03d] %(name)s[%(process)d] [%(levelname)s] %(message)s',
+            field_styles=field_styles,
+            level_styles=level_styles)
+        log_handler.setFormatter(formatter)
+
+        logger.addHandler(log_handler)
+        logger.setLevel(LEVEL_DICT[level.upper()])
+        logger.propagate = False
+        return logger, name
 
 
-def get_file_logger(name, log_path, level: str = "DEBUG"):
-    if level.upper() not in level_dict.keys():
-        raise ValueError("Invalid Logger level. You got: '{}'".format(level))
-    logger = logging.getLogger(name)
-
-    f_logger = FedTorchFileHandler(filename=log_path)
-    f_logger.setLevel(level_dict[level])
-
-    formatter = logging.Formatter('%(asctime)s,%(msecs)03d %(name)s[%(process)d] %(levelname)s %(message)s')
-    f_logger.setFormatter(formatter)
-
-    logger.addHandler(f_logger)
-    logger.setLevel(level_dict[level])
-    logger.propagate = False
-
-    return logger
+def write_experiment_summary(title: str, context: dict) -> None:
+    logger, _ = get_logger(LOGGER_DICT['summary'], log_type='file')
+    logger.info("*" * 15 + " {} ".format(title) + "*" * 15)
+    for key, value in context.items():
+        logger.info("{}: {}".format(key, value))

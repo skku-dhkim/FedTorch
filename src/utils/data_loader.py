@@ -1,3 +1,5 @@
+import copy
+
 from .. import *
 from torchvision.datasets import *
 from torchvision.transforms import *
@@ -35,21 +37,26 @@ class CustomDataLoader:
         """
         # Get dirichlet distribution
         # Set a random seed for fixed data distribution
-        # np.random.seed(2022)
+        np.random.seed(2023)
         s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
         c_dist = pd.DataFrame(s)
 
         # Round for data division convenience.
-        c_dist = c_dist.round(3)
+        c_dist = c_dist.round(2)
+        while len(c_dist.columns[(c_dist == 0).all()]) > 0:
+            s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
+            c_dist = pd.DataFrame(s)
+            # Round for data division convenience.
+            c_dist = c_dist.round(2)
 
-        # To plot
-        sns.set(rc={'figure.figsize': (10, 10)})
-        ax = sns.heatmap(c_dist, cmap='YlGnBu', annot=True)
+        sns.set(rc={'figure.figsize': (20, 20)})
+        ax = sns.heatmap(c_dist, cmap='YlGnBu', annot=False)
         ax.set(xlabel='Clients', ylabel='Classes')
         figure = ax.get_figure()
 
         # Save to Image
         figure.savefig(os.path.join(self.log_path, 'client_meta.png'), format='png')
+        c_dist.to_csv(os.path.join(self.log_path, 'client_meta.csv'), index=False)
 
         # Tensorboard log
         self.summary_writer = SummaryWriter(self.log_path)
@@ -132,7 +139,8 @@ class CustomDataLoader:
             for idx in range(len(valid_x)):
                 self.valid_set['x'].append(valid_x[idx])
                 self.valid_set['y'].append(valid_y[idx])
-            client['valid'] = DatasetWrapper({'x': valid_x, 'y': valid_y}, transform=self.transform)
+
+            client['test'] = DatasetWrapper({'x': valid_x, 'y': valid_y}, transform=self.transform)
         return clients
 
     def load(self, number_of_clients: int, dirichlet_alpha: float) -> tuple:
@@ -158,6 +166,7 @@ class CustomDataLoader:
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
         federated_dataset = self._to_dataset(federated_dataset)
         valid_loader = DataLoader(DatasetWrapper(self.valid_set, transform=self.transform), batch_size=16)
+        # INFO - IID dataset
         test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y},
                                                 transform=self.transform), batch_size=16)
 
@@ -235,5 +244,6 @@ class DatasetWrapper(Dataset):
     def __getitem__(self, item) -> tuple:
         x, y = self.data_x[item], self.data_y[item]
         if self.transform:
-            x = self.transform(x)
+            copied_x = copy.deepcopy(x)
+            x = self.transform(copied_x)
         return x, y

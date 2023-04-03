@@ -1,54 +1,51 @@
 from src import *
 from src.model import *
-import copy
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch.nn import *
 
 
 def init_weights(layer):
-    if isinstance(layer, nn.Conv2d):
-        nn.init.xavier_uniform(layer.weight)
+    if isinstance(layer, Conv2d):
+        init.xavier_uniform(layer.weight)
         layer.bias.data.fill_(0.01)
-    elif isinstance(layer, nn.Linear):
-        nn.init.xavier_uniform(layer.weight)
+    elif isinstance(layer, Linear):
+        init.xavier_uniform(layer.weight)
         layer.bias.data.fill_(0.01)
 
 
-class CustomCNN(FederatedModel):
+class CustomCNN(Module):
     def __init__(self, num_classes: int = 10, b_global: bool = False, **kwargs):
         super(CustomCNN, self).__init__()
         if b_global:
-            self.features = nn.Sequential(
-                nn.Conv2d(3, 6, (5, 5), bias=False),
-                nn.ReLU(),
-                nn.MaxPool2d((2, 2)),
-                nn.Conv2d(6, 16 * kwargs['n_of_clients'], (5, 5), bias=False),
-                nn.ReLU(),
-                nn.MaxPool2d((2, 2))
+            self.features = Sequential(
+                Conv2d(3, 6, (5, 5), bias=False),
+                ReLU(),
+                MaxPool2d((2, 2)),
+                Conv2d(6, 16 * kwargs['n_of_clients'], (5, 5), bias=False),
+                ReLU(),
+                MaxPool2d((2, 2))
             )
-            self.fc = nn.Sequential(
-                nn.Linear(16 * kwargs['n_of_clients'] * 5 * 5, 120),
-                nn.ReLU(),
-                nn.Linear(120, 84),
-                nn.ReLU(),
-                nn.Linear(84, num_classes)
+            self.fc = Sequential(
+                Linear(16 * kwargs['n_of_clients'] * 5 * 5, 120),
+                ReLU(),
+                Linear(120, 84),
+                ReLU(),
+                Linear(84, num_classes)
             )
         else:
-            self.features = nn.Sequential(
-                nn.Conv2d(3, 6, (5, 5)),
-                nn.ReLU(),
-                nn.MaxPool2d((2, 2)),
-                nn.Conv2d(6, 16, (5, 5)),
-                nn.ReLU(),
-                nn.MaxPool2d((2, 2))
+            self.features = Sequential(
+                Conv2d(3, 6, (5, 5)),
+                ReLU(),
+                MaxPool2d((2, 2)),
+                Conv2d(6, 16, (5, 5)),
+                ReLU(),
+                MaxPool2d((2, 2))
             )
-            self.fc = nn.Sequential(
-                nn.Linear(16*5*5, 120),
-                nn.ReLU(),
-                nn.Linear(120, 84),
-                nn.ReLU(),
-                nn.Linear(84, num_classes)
+            self.fc = Sequential(
+                Linear(16*5*5, 120),
+                ReLU(),
+                Linear(120, 84),
+                ReLU(),
+                Linear(84, num_classes)
             )
 
     def forward(self, x):
@@ -57,34 +54,29 @@ class CustomCNN(FederatedModel):
         x = self.fc(x)
         return x
 
-# class CustomCNN(FederatedModel):
-#     def __init__(self, num_classes: int = 10, b_global: bool = False, **kwargs):
-#         self.features = FeatureBlock()
-#         self.fc = nn.Sequential(
-#             nn.Linear(16 * 5 * 5, 120),
-#             nn.ReLU(),
-#             nn.Linear(120, 84),
-#             nn.ReLU(),
-#             nn.Linear(84, num_classes)
-#         )
+    def feature_maps(self, x):
+        with torch.no_grad():
+            x = self.features(x)
+        return x
 
-class MiniCustomCNN(nn.Module):
+
+class MiniCustomCNN(Module):
     def __init__(self):
         super(MiniCustomCNN, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 6, (5, 5)),
-            nn.ReLU(),
-            nn.MaxPool2d((2, 2)),
-            nn.Conv2d(6, 8, (5, 5)),
-            nn.ReLU(),
-            nn.MaxPool2d((2, 2))
+        self.features = Sequential(
+            Conv2d(3, 6, (5, 5)),
+            ReLU(),
+            MaxPool2d((2, 2)),
+            Conv2d(6, 8, (5, 5)),
+            ReLU(),
+            MaxPool2d((2, 2))
         )
-        self.fc = nn.Sequential(
-            nn.Linear(200, 40),
-            nn.ReLU(),
-            nn.Linear(40, 20),
-            nn.ReLU(),
-            nn.Linear(20, 10)
+        self.fc = Sequential(
+            Linear(200, 40),
+            ReLU(),
+            Linear(40, 20),
+            ReLU(),
+            Linear(20, 10)
         )
 
     def forward(self, x):
@@ -94,32 +86,32 @@ class MiniCustomCNN(nn.Module):
         return x
 
 
-class FeatureBlock(FederatedModel):
+class FeatureBlock(Module):
     def __init__(self):
         super(FeatureBlock, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 6, (5, 5)),
-            nn.ReLU(),
-            nn.MaxPool2d((2, 2)),
-            nn.Conv2d(6, 16, (5, 5)),
-            nn.ReLU(),
-            nn.MaxPool2d((2, 2))
+        self.features = Sequential(
+            Conv2d(3, 6, (5, 5)),
+            ReLU(),
+            MaxPool2d((2, 2)),
+            Conv2d(6, 16, (5, 5)),
+            ReLU(),
+            MaxPool2d((2, 2))
         )
 
     def forward(self, x):
         return self.features(x)
 
 
-class MixedModel(FederatedModel):
+class MixedModel(Module):
     def __init__(self, models):
         super(MixedModel, self).__init__()
-        feature_block = nn.Sequential(
-            nn.Conv2d(3, 6, (5, 5)),
-            nn.ReLU(),
-            nn.MaxPool2d((2, 2)),
-            nn.Conv2d(6, 16, (5, 5)),
-            nn.ReLU(),
-            nn.MaxPool2d((2, 2))
+        feature_block = Sequential(
+            Conv2d(3, 6, (5, 5)),
+            ReLU(),
+            MaxPool2d((2, 2)),
+            Conv2d(6, 16, (5, 5)),
+            ReLU(),
+            MaxPool2d((2, 2))
         )
         self.features = []
 
@@ -130,14 +122,14 @@ class MixedModel(FederatedModel):
             _fb.requires_grad_(False)
             self.features.append(_fb)
 
-        self.fc = nn.Sequential(
-            nn.Linear(16*5*5*len(models), 120*len(models)),
-            nn.ReLU(),
-            nn.Linear(120*len(models), 84*len(models)),
-            nn.ReLU(),
-            nn.Linear(84*len(models), 10*len(models)),
-            nn.ReLU(),
-            nn.Linear(10*len(models), 10)
+        self.fc = Sequential(
+            Linear(16*5*5*len(models), 120*len(models)),
+            ReLU(),
+            Linear(120*len(models), 84*len(models)),
+            ReLU(),
+            Linear(84*len(models), 10*len(models)),
+            ReLU(),
+            Linear(10*len(models), 10)
         )
 
     def freeze_feature_layer(self):
@@ -157,7 +149,7 @@ class MixedModel(FederatedModel):
         return out
 
 
-class ModelFedCon(nn.Module):
+class ModelFedCon(Module):
     """
         classifier part return, source, label , representation
     """
@@ -168,11 +160,11 @@ class ModelFedCon(nn.Module):
         self.features = SimpleCNN_header(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=n_classes)
         num_ftrs = 84
 
-        self.l1 = nn.Linear(num_ftrs, num_ftrs)
-        self.l2 = nn.Linear(num_ftrs, out_dim)
+        self.l1 = Linear(num_ftrs, num_ftrs)
+        self.l2 = Linear(num_ftrs, out_dim)
 
         # last layer
-        self.l3 = nn.Linear(out_dim, n_classes)
+        self.l3 = Linear(out_dim, n_classes)
 
     def forward(self, x):
         h = self.features(x)
@@ -185,18 +177,18 @@ class ModelFedCon(nn.Module):
         return y
 
 
-class SimpleCNN_header(nn.Module):
+class SimpleCNN_header(Module):
     def __init__(self, input_dim, hidden_dims, output_dim=10):
         super(SimpleCNN_header, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.relu = nn.ReLU()
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.conv1 = Conv2d(3, 6, 5)
+        self.relu = ReLU()
+        self.pool = MaxPool2d(2, 2)
+        self.conv2 = Conv2d(6, 16, 5)
 
         # for now, we hard coded this network
         # i.e. we fix the number of hidden layers i.e. 2 layers
-        self.fc1 = nn.Linear(input_dim, hidden_dims[0])
-        self.fc2 = nn.Linear(hidden_dims[0], hidden_dims[1])
+        self.fc1 = Linear(input_dim, hidden_dims[0])
+        self.fc2 = Linear(hidden_dims[0], hidden_dims[1])
 
     def forward(self, x):
         x = self.pool(self.relu(self.conv1(x)))

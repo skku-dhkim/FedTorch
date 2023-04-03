@@ -12,4 +12,8 @@ level_styles = {
 }
 
 global_loglevel = 'DEBUG'
+STREAM_LOG_LEVEL = "INFO"
+SUMMARY_LOG_LEVEL = "INFO"
+SYSTEM_LOG_LEVEL = "INFO"
 
+LOGGER_DICT = {}
