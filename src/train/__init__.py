@@ -1,6 +1,8 @@
 from torch.optim import *
+from torch import nn
 
 import torch
+from src import *
 
 
 def call_optimizer(optimizer_name: str):
@@ -17,5 +19,7 @@ def call_optimizer(optimizer_name: str):
 
 __all__ = [
     'torch',
-    'call_optimizer'
+    'call_optimizer',
+    'nn',
+    'Optional', 'Union'
 ]
