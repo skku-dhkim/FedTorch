@@ -62,12 +62,21 @@ def train(
             optim.zero_grad()
 
             outputs = model(inputs)
-            loss = loss_fn(outputs, labels)
+
+            current_state = F.get_parameters(model)
+
+            mu = training_settings['mu']
+            proximal_term = 0.0
+
+            for k in self.current_state.keys():
+                proximal_term += (self.current_state[k] - original_state[k]).norm(2)
+
+            loss = loss_fn(outputs, labels) + mu * proximal_term
 
             loss.backward()
             optim.step()
 
-            current_state = F.get_parameters(model)
+
 
             # INFO - Step summary
             training_loss += loss.item()
@@ -96,6 +105,7 @@ def train(
         # F.mark_entropy(client, model, summary_writer)
 
         F.mark_cosine_similarity(current_state, original_state, summary_writer, client.epoch_counter)
+        F.mark_norm_size(current_state, summary_writer, client.epoch_counter)
 
         client.epoch_counter += 1
 
@@ -219,9 +229,9 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
             if gr % 10 == 0:
                 F.mark_weight_distribution(trained_clients,aggregator.get_parameters(),aggregator.summary_writer,gr)
-
-                #global_info
-                F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer,gr)
+                hess_eigv, hess_trc = F.compute_hessian(aggregator.model, aggregator.test_loader)
+                summary_logger.info("Test hessian eigen-value: {}".format(hess_eigv))
+                summary_logger.info("Test hessian trace: {}".format(hess_trc))
 
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
