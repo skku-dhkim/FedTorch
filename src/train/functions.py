@@ -7,6 +7,10 @@ from src.train.train_utils import *
 import random
 import ray
 import torch
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def model_download(aggregator: Aggregator, clients: dict) -> None:
@@ -67,7 +71,7 @@ def compute_accuracy(model: Module, data_loader: DataLoader, loss_fn: Optional[M
     with torch.no_grad():
         for x, y in data_loader:
             x = x.to(device)
-            y = y.to(device)
+            y = y.to(device).to(torch.long)
             outputs = model(x)
             if loss_fn is not None:
                 loss = loss_fn(outputs, y)
@@ -300,6 +304,174 @@ def mark_norm_gap(model_l: Module, model_g: Module, dataloader: DataLoader,
         summary_writer.add_scalar("norm_gap/l{}/classifier".format(norm), torch.mean(features_gap), epoch)
 
 
+# For hessian matrix value
+# Hessian matrix is related loss-landscape convexity
+# Warning : calculating hessian value is very time consuming task.
+def mark_hessian(model: Module, data_loader: DataLoader, summary_writer: SummaryWriter, epoch: int) -> None:
+    """
+    Compute the accuracy using its whole data.
+
+    Args:
+        model: (torch.Module) Training model.
+        data_loader: (torch.utils.Dataloader) Dataloader.
+        summary_writer: (SummaryWriter) SummaryWriter object.
+        epoch: (int) Current global round.
+
+    Returns: ((float) maximum eigenvalue of hessian, (float) hessian trace)
+
+    """
+    device = "cuda" if torch.cuda.is_available() is True else "cpu"
+
+    model.to(device)
+    model.eval()
+
+    hessian_trace = 0.0
+    max_eigval = 0.0
+    count = 0
+
+    loss_fn = torch.nn.CrossEntropyLoss().to(device)
+
+    for x, y in data_loader:
+        x = x.to(device)
+        y = y.to(device).to(torch.long)
+        outputs = model(x)
+        if loss_fn is not None:
+            loss = loss_fn(outputs, y)
+
+            grad1 = torch.autograd.grad(loss,model.parameters(),create_graph=True)
+
+            grad1 = torch.cat([grad.flatten() for grad in grad1])
+
+            count += len(grad1)
+
+            for i in range(grad1.size(0)):
+
+                grad2 = torch.autograd.grad(grad1[i], model.parameters(), create_graph=True)
+
+                grad2 = torch.cat([grad.flatten() for grad in grad2])
+
+                hessian_trace += grad2.sum().item()
+
+                max_eigval = max(max_eigval, torch.abs(grad2).max().item())
+        break
+
+    hessian_trace /= count
+    max_eigval /= count
+
+    summary_writer.add_scalar("max_hessian_eigen",max_eigval,epoch)
+    summary_writer.add_scalar("hessian_trace",hessian_trace,epoch)
+
+
+
+
+#for cosine similarity check
+def mark_cosine_similarity(current_state: OrderedDict, original_state: OrderedDict, summary_writer: SummaryWriter, epoch: int ) -> None:
+    """
+    Mark the cosine similarity between client and global
+    Args:
+        current_state: (OrderedDict) Local Model state
+        original_state: (OrderedDict) Global Model state
+        summary_writer: (SummaryWriter) SummaryWriter object.
+        epoch: (int) Current global round.
+
+    Returns: (None)
+
+    """
+    #device = "cpu"
+
+    original_params = []  ## flattened global_weight
+    local_params = []     ## flattened client_weight
+
+
+    for k in current_state.keys():
+        original_params.append(torch.flatten(original_state[k].to(torch.float32)))
+        local_params.append(torch.flatten(current_state[k].to(torch.float32)))
+
+    ## flatten parameters and change to vector
+    original_params = torch.cat(original_params)
+    local_params = torch.cat(local_params)
+
+
+    # INFO: Calculate Total Weight Similarity on each client
+    cos_sim = torch.nn.CosineSimilarity(dim=-1)
+    siml = cos_sim(local_params, original_params).item()
+
+    summary_writer.add_scalar("cosine_similarity", siml, epoch)
+
+
+#for cosine similarity check
+def mark_norm_size(current_state: OrderedDict, summary_writer: SummaryWriter, epoch: int ) -> None:
+    """
+    Mark the cosine similarity between client and global
+    Args:
+        current_state: (OrderedDict) Local Model state
+        original_state: (OrderedDict) Global Model state
+        summary_writer: (SummaryWriter) SummaryWriter object.
+        epoch: (int) Current global round.
+
+    Returns: (None)
+
+    """
+    #device = "cpu"
+
+    local_params = []     ## flattened client_weight
+
+
+    for k in current_state.keys():
+        local_params.append(torch.flatten(current_state[k].to(torch.float32)))
+
+    ## flatten parameters and change to vector
+    local_params = torch.cat(local_params)
+
+    # INFO: Calculate Total Weight norm size on each client
+    norm_size = torch.norm(local_params, dim=-1)
+
+    summary_writer.add_scalar("Norm_size", norm_size, epoch)
+
+
+# for weight distribution visualization
+# extract 1000 paramter and check distribution
+# should be checked later
+def mark_weight_distribution(clients, original_state: OrderedDict, summary_writer: SummaryWriter, epoch: int ) -> None:
+    models_weights = []
+    gmodel_weights = []
+
+    for client in clients:
+        model_weight = []
+        ## collect each client paramters. sampling 200 of them on each
+        for k in original_state.keys():
+            model_weight.append(torch.flatten(client.model[k].to(torch.float32)))
+        cweight = torch.cat(model_weight)
+
+        indices = np.random.choice(cweight.shape[0], size=200, replace=False)  #extract random 200 element
+
+        models_weight = cweight[indices]
+        models_weights.append(torch.cat(model_weight))
+
+    #collect global model paramter. sampling 1000
+    gmodel_weights = []
+    for k in original_state.keys():
+        gmodel_weights.append(torch.flatten(original_state[k].to(torch.float32)))
+    gmodel_weights=torch.cat(gmodel_weights)
+
+    indices = np.random.choice(gmodel_weights.shape[0], size=200, replace=False)
+    gmodel_weights = gmodel_weights[indices]
+
+    ## draw density plot
+    fig, axe = plt.subplots(1, 1, figsize=(8, 8))
+    for i, weights in enumerate(models_weights):
+        sns.kdeplot(data=weights, label="Client {}".format(i), ax=axe)
+    sns.kdeplot(data=gmodel_weights, label="Global Model", ax=axe, linewidth=3, linestyle='--')
+
+    axe.set_title("Weight Density Plot")
+    axe.set_xlabel("Value")
+    axe.set_ylabel("Density")
+    axe.legend()
+
+    summary_writer.add_figure("Weight Density Plots/{}".format(epoch), fig)
+
+
+
 # TODO: Need to check it is surely works.
 def kl_indicator(local_tensor, global_tensor, logit=False, alpha=1):
     # INFO: Calculates entropy gap
@@ -332,3 +504,69 @@ def local_training_moon(clients: dict) -> None:
 
     """
     ray.get([client.train_moon.remote() for _, client in clients.items()])
+
+
+## INFO:
+## 1.Centering Gradient  2.Orthogonalize Gradient
+def Constrainting(original_state, current_state):
+    """
+    Mark the cosine similarity between client and global
+    Args:
+        current_state: (OrderedDict) Local Model state
+        original_state: (OrderedDict) Global Model state
+
+    Returns: new_state: (OrderedDict) Adjusted Model state
+    """
+
+    original_params = []  ## flattened glob_weight
+    local_params = []  ## flattened updated_local_weight
+    grad_state = OrderedDict()
+    new_state = OrderedDict()
+
+    for k in current_state.keys():
+        original_params.append(torch.flatten(original_state[k].to(torch.float32)))
+        local_params.append(torch.flatten(current_state[k].to(torch.float32)))
+        grad_state[k] = current_state[k] - original_state[k]
+
+    ## flatten parameters and change to vector
+    original_params = torch.cat(original_params)
+    local_params = torch.cat(local_params)
+    grad_params = local_params - original_params
+
+
+    #For centering & orthogonalizing gradient
+    grad_mean = torch.mean(grad_params)
+
+    gmean_params = torch.full(local_params.shape, grad_mean)
+
+    grad_params -= gmean_params
+
+    GG = torch.dot(original_params, original_params)
+    G = torch.sqrt(GG)
+
+    dGG = torch.dot(grad_params, grad_params)
+    dG = torch.sqrt(dGG)
+
+    cos_sim = torch.nn.CosineSimilarity(dim=-1)
+
+    C = cos_sim(grad_params, original_params)
+
+    parallel_scale = C * dG / G
+    ################################################################################
+
+    ## INFO: Update the local model with centered & orthogonalized gradient
+    for k in current_state.keys():
+        gmean_tensor = torch.full(grad_state[k].shape, grad_mean)
+        new_state[k] = original_state[k] * (1 - parallel_scale) + grad_state[k] - gmean_tensor
+
+    return new_state
+
+
+## INFO:
+## extracting model state_dict(paramters)
+##
+def get_parameters(model, ordict: bool = True) -> Union[OrderedDict, Any]:
+    if ordict:
+        return OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
+    else:
+        return [val.clone().detach().cpu() for _, val in model.state_dict().items()]

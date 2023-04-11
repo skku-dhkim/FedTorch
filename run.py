@@ -4,7 +4,7 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg, FedKL, FedIndi
+from src.methods import FedAvg, FedKL, FedConst, Fedprox,Scaffold,MOON # FedIndi,
 
 import argparse
 import os
@@ -39,6 +39,7 @@ if __name__ == '__main__':
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--sample_ratio', type=float, default=1.0)
     parser.add_argument('--T', type=float, default=1.0)
+    parser.add_argument('--mu', type=float, default=0.01)
     #parser.add_argument('--var_client', type=list, default=[])
 
     # Logs settings
@@ -104,6 +105,7 @@ if __name__ == '__main__':
         'weight_decay': 1e-5,
         'kl_temp': 2,
         'indicator_temp': 1,
+        'mu':args.mu,
     }
 
     write_experiment_summary("Client Setting", client_settings)
@@ -115,9 +117,13 @@ if __name__ == '__main__':
     try:
         # INFO: Run Function
         # TODO: Make additional Federated method
-        FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        # FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
         # FedIndi.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
         # FedAvg.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        # Fedprox.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        # FedConst.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        # Scaffold.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        MOON.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
 
     except Exception as e:
         system_logger.error(traceback.format_exc())

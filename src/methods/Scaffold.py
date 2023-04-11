@@ -21,10 +21,24 @@ def train(
 
     # INFO - Call the model architecture and set parameters.
     model = model_call(training_settings['model'], num_of_classes)
-    model.load_state_dict(client.model)
-    model = model.to(device)
+    model.load_state_dict(client.model) ## load state dict, not all attribute.
+    ## it's own
 
+
+    model = model.to(device)
     original_state = F.get_parameters(model)
+
+    #Check if there exist correction term.
+
+    if not hasattr(client,'correction'):
+        client.correction = {}
+        for k, v in original_state.items():
+            client.correction[k] = torch.zeros_like(v.data)
+
+    if not hasattr(client,'gcorrection'):
+        client.gcorrection = client.correction
+
+
 
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
@@ -64,10 +78,28 @@ def train(
             outputs = model(inputs)
             loss = loss_fn(outputs, labels)
 
+
+            prev_state = F.get_parameters(model) #state befor update
+
             loss.backward()
             optim.step()
 
-            current_state = F.get_parameters(model)
+            current_state = F.get_parameters(model) #state after update
+
+            # applying correction mechanism of scaffold
+            for k in current_state.keys():
+                grad = (prev_state[k] - current_state[k]) / training_settings['local_lr']
+
+                con = client.correction[k].clone().detach().cpu()
+                gcon = client.gcorrection[k].clone().detach().cpu()
+                dp = grad + gcon - con
+                current_state[k] -= dp * training_settings['local_lr']
+
+            ############## For constraint  ###############################
+            #current_state = F.Constrainting(original_state,current_state)
+            ##############################################################
+
+            model.load_state_dict(current_state, strict=True)
 
             # INFO - Step summary
             training_loss += loss.item()
@@ -81,6 +113,16 @@ def train(
                 summary_writer.add_scalar('step_acc', training_acc, client.step_counter)
                 summary_counter = 0
                 training_loss = 0
+
+        e = training_settings['local_epochs']
+        steps = e * len(client.train_loader)
+        lr = training_settings['local_lr']
+        footprint = steps * lr
+
+        ##updating correction term
+        for k in current_state.keys():
+            client.correction[k] = client.correction[k].to(device) - client.gcorrection[k].to(device)\
+                                             + (original_state[k].to(device)-current_state[k].to(device))/ footprint
 
         # INFO - Epoch summary
         test_acc, test_loss = F.compute_accuracy(model, client.test_loader, loss_fn)
@@ -138,6 +180,7 @@ def local_training(clients: list,
 def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, model_save: bool = False):
     total_len = 0
     empty_model = OrderedDict()
+    empty_correction = OrderedDict()
 
     for client in clients:
         total_len += client.data_len()
@@ -145,12 +188,20 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     for k, v in aggregator.model.state_dict().items():
         for client in clients:
             if k not in empty_model.keys():
-                empty_model[k] = client.model[k] * (client.data_len() / total_len) * global_lr
+                empty_model[k] = client.model[k] * (1.0/len(clients)) * global_lr
+                empty_correction[k] = client.correction[k] * (1.0/len(clients)) * global_lr
             else:
-                empty_model[k] += client.model[k] * (client.data_len() / total_len) * global_lr
+                empty_model[k] += client.model[k] * (1.0/len(clients)) * global_lr
+                empty_correction[k] = client.correction[k] * (1.0/len(clients)) * global_lr
+
+    # distribute aggregated correction-term
+    for k, v in aggregator.model.state_dict().items():
+        for client in clients:
+            client.gcorrection[k] = empty_correction[k]
 
     # Global model updates
     aggregator.set_parameters(empty_model)
+
     aggregator.global_iter += 1
 
     aggregator.test_accuracy = aggregator.compute_accuracy()

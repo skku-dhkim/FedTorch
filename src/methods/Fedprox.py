@@ -62,12 +62,28 @@ def train(
             optim.zero_grad()
 
             outputs = model(inputs)
-            loss = loss_fn(outputs, labels)
+
+            current_state = F.get_parameters(model)
+
+            mu = training_settings['mu']
+            proximal_term = 0.0
+
+            for k in current_state.keys():
+                proximal_term += (current_state[k] - original_state[k]).norm(2)
+
+            loss = loss_fn(outputs, labels) + mu * proximal_term
 
             loss.backward()
             optim.step()
 
             current_state = F.get_parameters(model)
+
+            ############## for constraint  ############################
+            #new_state = F.Constrainting(original_state, current_state)
+            #
+            #model.load_state_dict(new_state, strict=True)
+            ###########################################################
+
 
             # INFO - Step summary
             training_loss += loss.item()
@@ -221,8 +237,8 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             if gr % 10 == 0:
                 F.mark_weight_distribution(trained_clients,aggregator.get_parameters(),aggregator.summary_writer,gr)
             if gr == training_setting['global_iter']-1:
-                #global_info
-                F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer,gr)
+                # global_info
+                F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer, gr)
 
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:

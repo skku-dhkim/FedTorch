@@ -3,6 +3,7 @@ import torch
 from . import *
 from src.model import NUMBER_OF_CLASSES
 from .utils import *
+from copy import deepcopy
 
 
 @ray.remote
@@ -25,6 +26,13 @@ def train(
     model = model.to(device)
 
     original_state = F.get_parameters(model)
+
+
+    if not hasattr(client,'prev_model'):
+        client.prev_model = deepcopy(model)
+
+    global_model = deepcopy(model)
+
 
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
@@ -51,10 +59,29 @@ def train(
         training_loss = 0
         summary_counter = 0
 
+        ###############################################################################
+        representations = {}
+
+        # INFO: HELPER FUNCTION FOR FEATURE EXTRACTION
+        def get_representations(name):
+            def hook(model, input, output):
+                representations[name] = output.detach()
+
+            return hook
+
+        # INFO: REGISTER HOOK
+        # TODO: Model specific, need to make general for the future.
+        model.features.register_forward_hook(get_representations('rep'))
+        ###############################################################################
+
+
         # INFO: Training steps
         for x, y in client.train_loader:
             inputs = x.to(device)
             labels = y.to(device).to(torch.long)
+
+            inputs.requires_grad = False
+            labels.requires_grad = False
 
             model.train()
             model.to(device)
@@ -62,12 +89,53 @@ def train(
             optim.zero_grad()
 
             outputs = model(inputs)
-            loss = loss_fn(outputs, labels)
+
+            cos_sim = torch.nn.CosineSimilarity(dim=-1)
+
+            # MOON's reperesentation extraction mechanism
+
+
+            l_rep = representations['rep'].reshape((inputs.shape[0], -1))
+
+            _ = global_model(inputs)
+            g_rep = representations['rep'].reshape((inputs.shape[0], -1))
+            posi = cos_sim(l_rep, g_rep).reshape(-1, 1)
+
+
+            _ = client.prev_model(inputs)
+            p_rep = representations['rep'].reshape((inputs.shape[0], -1))
+            nega = cos_sim(l_rep, p_rep).reshape(-1, 1)
+
+
+            logits = torch.cat((posi, nega), dim=1)
+
+            # Hyperparameter
+            #temperature = 0.5
+            temperature = training_settings['temperature']
+            mu = training_settings['mu']
+
+            logits /= temperature
+            targets = torch.zeros(inputs.size(0)).to(device).long()
+
+
+            loss2 = mu * loss_fn(logits, targets)
+            loss1 = loss_fn(outputs, labels)
+            loss = loss1 + loss2
+
+
+            ############################################################
 
             loss.backward()
             optim.step()
 
             current_state = F.get_parameters(model)
+
+            ############## for constraint  ############################
+            #new_state = F.Constrainting(original_state, current_state)
+            #
+            #model.load_state_dict(new_state, strict=True)
+            ###########################################################
+
 
             # INFO - Step summary
             training_loss += loss.item()
@@ -102,6 +170,7 @@ def train(
 
     # INFO - Local model update
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
+    client.prev_model = deepcopy(model)
     return client
 
 
@@ -221,8 +290,8 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             if gr % 10 == 0:
                 F.mark_weight_distribution(trained_clients,aggregator.get_parameters(),aggregator.summary_writer,gr)
             if gr == training_setting['global_iter']-1:
-                #global_info
-                F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer,gr)
+                # global_info
+                F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer, gr)
 
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
