@@ -509,6 +509,15 @@ def local_training_moon(clients: dict) -> None:
 ## INFO:
 ## 1.Centering Gradient  2.Orthogonalize Gradient
 def Constrainting(original_state, current_state):
+    """
+    Mark the cosine similarity between client and global
+    Args:
+        current_state: (OrderedDict) Local Model state
+        original_state: (OrderedDict) Global Model state
+
+    Returns: new_state: (OrderedDict) Adjusted Model state
+    """
+
     original_params = []  ## flattened glob_weight
     local_params = []  ## flattened updated_local_weight
     grad_state = OrderedDict()
@@ -524,12 +533,6 @@ def Constrainting(original_state, current_state):
     local_params = torch.cat(local_params)
     grad_params = local_params - original_params
 
-    # INFO: Calculate Total Weight Similarity on each client
-    #siml = self.cos_sim(local_params, original_params).item() /// have to extract original && and current local
-
-    #self.summary_writer.add_scalar("Total_weight_similarity", siml, self.global_iter)
-
-    # Add here
 
     #For centering & orthogonalizing gradient
     grad_mean = torch.mean(grad_params)

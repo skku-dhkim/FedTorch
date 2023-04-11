@@ -96,6 +96,7 @@ def train(
         # F.mark_entropy(client, model, summary_writer)
 
         F.mark_cosine_similarity(current_state, original_state, summary_writer, client.epoch_counter)
+        F.mark_norm_size(current_state, summary_writer, client.epoch_counter)
 
         client.epoch_counter += 1
 
@@ -219,7 +220,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
             if gr % 10 == 0:
                 F.mark_weight_distribution(trained_clients,aggregator.get_parameters(),aggregator.summary_writer,gr)
-
+            if gr == training_setting['global_iter']-1:
                 #global_info
                 F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer,gr)
 
