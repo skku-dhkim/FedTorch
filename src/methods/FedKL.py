@@ -2,13 +2,12 @@ from src.methods import *
 from .utils import *
 
 
-@ray.remote
+@ray.remote(max_calls=1)
 def train(
         client: Client,
         training_settings: dict,
         num_of_classes: int,
         early_stopping: bool = False):
-
     device = "cuda" if torch.cuda.is_available() is True else "cpu"
 
     # INFO: Unblock the code if you use M1 GPU
@@ -70,17 +69,17 @@ def train(
             Pc = F.calculate_norm_gap(local_outputs.detach(), one_hot, logit=True, normalize=False, prob=True)
             Pg = F.calculate_norm_gap(global_outputs.detach(), one_hot, logit=True, normalize=False, prob=True)
             entropy = torch.mean(F.entropy(local_outputs.detach(), prob=False, normalize=True, base='exp'))
-            _r = torch.mean(Pc)/(torch.mean(Pg) + torch.mean(Pc))
+            _r = torch.mean(Pc) / (torch.mean(Pg) + torch.mean(Pc))
             r = torch.exp(-_r)
 
             T = training_settings['indicator_temp']
-            indicator = torch.sqrt(r/(1+T*entropy))
+            indicator = torch.sqrt(r / (1 + T * entropy))
 
             cross_entropy_loss = loss_fn(local_outputs, labels)
             outputs_kl_loss = F.loss_fn_kd(local_outputs, global_outputs.detach(),
                                            alpha=indicator,
                                            temperature=training_settings['kl_temp'])
-            loss = (1-indicator)*cross_entropy_loss + outputs_kl_loss
+            loss = (1 - indicator) * cross_entropy_loss + outputs_kl_loss
 
             loss.backward()
             optim.step()

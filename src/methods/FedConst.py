@@ -1,11 +1,9 @@
-import torch
-
 from . import *
 from src.model import NUMBER_OF_CLASSES
 from .utils import *
 
 
-@ray.remote
+@ray.remote(max_calls=1)
 def train(
         client: Client,
         training_settings: dict,
