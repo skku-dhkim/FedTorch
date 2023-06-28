@@ -60,3 +60,15 @@ class Client:
 #         super().__init__(client_name, data, batch_size, log_path)
 #         self.F_entropy_gap = None
 #         self.O_entropy_gap = None
+
+class FedCat_Client(Client):
+    def __init__(self,
+                 client_name: str,
+                 data: dict,
+                 batch_size: int,
+                 log_path: str):
+        super().__init__(client_name, data, batch_size, log_path)
+        self.activation_counts = None
+
+    # def activation_counter_clear(self):
+    #     self.activation_counts = None

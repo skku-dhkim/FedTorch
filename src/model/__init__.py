@@ -2,21 +2,21 @@ import torch
 import copy
 import torch.nn.functional as F
 
-from .custom_cnn import CustomCNN, ModelFedCon
+from .custom_cnn import CustomCNN, ModelFedCon, SparseCNN
 from .resnet import ResNet50_cifar10
 from torchvision.models import *
 from torch.nn import Sequential, Linear, ReLU
 
 
-def model_call(model_name: str, num_of_classes: int):
+def model_call(model_name: str, num_of_classes: int, **kwargs):
     if model_name.lower() == 'custom_cnn':
         return CustomCNN(num_of_classes=num_of_classes)
-    if model_name.lower() == 'moon_cnn':
+    elif model_name.lower() == 'moon_cnn':
         return ModelFedCon(10, n_classes=num_of_classes)
-    if model_name.lower() == "resnet-50":
+    elif model_name.lower() == "resnet-50":
         _model = ResNet50_cifar10(num_classes=num_of_classes)
         return _model
-    if model_name.lower() == "resnet-18":
+    elif model_name.lower() == "resnet-18":
         _model = resnet18()
         fc = Sequential(
             Linear(in_features=512, out_features=256, bias=True),
@@ -24,6 +24,14 @@ def model_call(model_name: str, num_of_classes: int):
             Linear(in_features=256, out_features=num_of_classes, bias=True)
         )
         _model.fc = fc
+        return _model
+    elif model_name.lower() == 'sparse_cnn':
+        if 'threshold' in kwargs:
+            _model = SparseCNN(num_classes=num_of_classes, threshold=kwargs['threshold'])
+        else:
+            _model = SparseCNN(num_classes=num_of_classes, threshold=0)
+
+        _model.init_activation_counter()
         return _model
     else:
         raise NotImplementedError("Not implemented yet.")

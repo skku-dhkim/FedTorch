@@ -1,7 +1,7 @@
 from torch.optim import *
 from torch.utils.tensorboard import SummaryWriter
 from collections import OrderedDict
-from src.clients.fed_clients import Client
+from src.clients.fed_clients import Client, FedCat_Client
 from src.clients.aggregator import Aggregator
 
 
@@ -29,5 +29,6 @@ __all__ = [
     'OrderedDict',
     'Client',
     'Aggregator',
+    'FedCat_Client'
     # 'FedKL_Client'
 ]
