@@ -200,58 +200,35 @@ class SimpleCNN_header(Module):
         return x
 
 
-class SparseCNN(Module):
-    def __init__(self, num_classes: int = 10, **kwargs):
-        super(SparseCNN, self).__init__()
-
-        self.features = Sequential(
-            Conv2d(3, 6, (5, 5)),
-            ReLU(),
-            MaxPool2d((2, 2)),
-            Conv2d(6, 16, (5, 5)),
-            ReLU(),
-            MaxPool2d((2, 2))
-        )
-        self.fc_1 = Linear(16 * 5 * 5, 120)
-        self.fc_2 = Linear(120, 84)
-        self.logit = Linear(84, num_classes)
-
-        self.fc_list = [self.fc_1, self.fc_2]
-        self.activation_count: dict = OrderedDict()
-
-        if 'threshold' in kwargs:
-            self.threshold = kwargs['threshold']
-        else:
-            self.threshold = 0
-
-    def forward(self, x):
-        x = self.features(x)
-        x = torch.flatten(x, 1)
-
-        for i, layer in enumerate(self.fc_list):
-            x = F.relu(layer(x))
-            self.count_activation(x, i)
-        with torch.no_grad():
-            _tx = F.relu(self.logit(x))
-            self.count_activation(_tx, len(self.fc_list))
-        logit = self.logit(x)
-        return logit
-
-    def feature_maps(self, x):
-        with torch.no_grad():
-            x = self.features(x)
-        return x
-
-    def init_activation_counter(self):
-        __model = self.state_dict()
-        for name, v in __model.items():
-            if 'fc' in name and 'weight' in name:
-                self.activation_count[name] = torch.zeros(v.size(0))
-            if 'logit' in name and 'weight' in name:
-                self.activation_count[name] = torch.zeros(v.size(0))
-
-    def count_activation(self, x, index):
-        __object = self.activation_count[list(self.activation_count.keys())[index]]
-        condition = (x > self.threshold).int()
-        counts = torch.sum(condition, dim=0)
-        __object += counts
+# class SimpleCNN(Module):
+#     def __init__(self, num_classes: int = 10, **kwargs):
+#         super(SimpleCNN, self).__init__()
+#
+#         self.features = Sequential(
+#             Conv2d(3, 6, (5, 5)),
+#             ReLU(),
+#             MaxPool2d((2, 2)),
+#             Conv2d(6, 16, (5, 5)),
+#             ReLU(),
+#             MaxPool2d((2, 2))
+#         )
+#         self.fc_1 = Linear(16 * 5 * 5, 120)
+#         self.fc_2 = Linear(120, 84)
+#         self.logit = Linear(84, num_classes)
+#
+#         self.fc_list = [self.fc_1, self.fc_2]
+#
+#         if 'threshold' in kwargs:
+#             self.threshold = kwargs['threshold']
+#         else:
+#             self.threshold = 0
+#
+#     def forward(self, x):
+#         x = self.features(x)
+#         features = torch.flatten(x, 1)
+#
+#         for i, layer in enumerate(self.fc_list):
+#             features = F.relu(layer(features))
+#
+#         logit = self.logit(features)
+#         return logit, features

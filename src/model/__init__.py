@@ -2,7 +2,8 @@ import torch
 import copy
 import torch.nn.functional as F
 
-from .custom_cnn import CustomCNN, ModelFedCon, SparseCNN
+from .custom_cnn import CustomCNN, ModelFedCon
+from .cnn import SimpleCNN
 from .resnet import ResNet50_cifar10
 from torchvision.models import *
 from torch.nn import Sequential, Linear, ReLU
@@ -25,14 +26,8 @@ def model_call(model_name: str, num_of_classes: int, **kwargs):
         )
         _model.fc = fc
         return _model
-    elif model_name.lower() == 'sparse_cnn':
-        if 'threshold' in kwargs:
-            _model = SparseCNN(num_classes=num_of_classes, threshold=kwargs['threshold'])
-        else:
-            _model = SparseCNN(num_classes=num_of_classes, threshold=0)
-
-        _model.init_activation_counter()
-        return _model
+    elif model_name.lower() == 'simple_cnn':
+        return SimpleCNN(num_classes=num_of_classes)
     else:
         raise NotImplementedError("Not implemented yet.")
 
@@ -45,6 +40,7 @@ NUMBER_OF_CLASSES = {
 
 __all__ = [
     'CustomCNN',
+    'SimpleCNN',
     'model_call',
     'F',
     'NUMBER_OF_CLASSES',
