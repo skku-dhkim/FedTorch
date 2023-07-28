@@ -6,7 +6,7 @@ from src.losses.loss import FeatureBalanceLoss
 
 
 @ray.remote(max_calls=1)
-def train(client: Client, training_settings: dict, num_of_classes: int):
+def train(client: FedBalancerClient, training_settings: dict, num_of_classes: int):
     device = "cuda" if torch.cuda.is_available() is True else "cpu"
 
     # INFO: Unblock the code if you use M1 GPU
@@ -88,50 +88,6 @@ def train(client: Client, training_settings: dict, num_of_classes: int):
     return client
 
 
-# # NOTE: Codebook may not be necessary if we prune the fc layer and bias either
-# def get_codebook(model: OrderedDict):
-#     codebook = list()
-#     for k, v in model.items():
-#         if 'features' in k and 'weight' in k:
-#             codebook.append(k)
-#         elif 'fc' in k and 'weight' in k:
-#             codebook.append(k)
-#     return codebook
-
-
-# def filter_pruning(model: OrderedDict, pruning_rate: float, activation_counts: Optional[OrderedDict] = None) -> OrderedDict:
-#     filter_index = None
-#     fc_index = None
-#     for name in model.keys():
-#         if 'features' in name:
-#             if filter_index is None:
-#                 filter_pruned_num = int(model[name].size()[0] * pruning_rate)
-#                 weight_vec = model[name].view(model[name].size()[0], -1)
-#
-#                 # NOTE: l1_norm also need to be tested.
-#                 norm_vector = weight_vec.norm(p=2, dim=1).cpu().numpy()
-#                 # norm_vector = weight_vec.norm(p=1, dim=1).cpu().numpy()
-#                 filter_index = norm_vector.argsort()[:filter_pruned_num]
-#                 # print("Filter index: ", filter_index)
-#
-#                 for index in filter_index:
-#                     zero_weight = torch.zeros_like(model[name][index], requires_grad=True)
-#                     # print(zero_weight.size())
-#                     # torch.nn.init.xavier_uniform_(zero_weight)
-#                     # model[name][index] = torch.zeros_like(model[name][index], requires_grad=True)
-#                     model[name][index] = zero_weight
-#             else:
-#                 for index in filter_index:
-#                     zero_weight = torch.zeros_like(model[name][index], requires_grad=True)
-#                     # torch.nn.init.xavier_uniform_(zero_weight)
-#                     model[name][index] = torch.zeros_like(zero_weight)
-#                 filter_index = None
-#         else:
-#             # INFO: Logit layer
-#             continue
-#     return model
-
-
 def local_training(clients: list,
                    training_settings: dict,
                    num_of_class: int) -> list:
@@ -161,7 +117,7 @@ def local_training(clients: list,
     return trained_result
 
 
-def fed_cat(clients: List[FedCat_Client], aggregator: Aggregator, model_save: bool = False):
+def aggregation_balancer(clients: List[FedBalancerClient], aggregator: Aggregator, model_save: bool = False):
     # for i, client in enumerate(clients):
     #     print("Index-{}: Client ID-{}".format(i, client.name))
 
@@ -264,7 +220,7 @@ def run(client_setting: dict, training_setting: dict, experiment_name: str,
     fed_dataset, valid_loader, test_loader = data_preprocessing(client_setting)
 
     # INFO - Client initialization
-    client = Client
+    client = FedBalancerClient
     clients, aggregator = client_initialize(client, fed_dataset, test_loader, valid_loader,
                                             client_setting, training_setting)
     start_runtime = time.time()
@@ -292,7 +248,7 @@ def run(client_setting: dict, training_setting: dict, experiment_name: str,
                                              training_settings=training_setting,
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
             stream_logger.debug("[*] Federated aggregation scheme...")
-            fed_cat(trained_clients, aggregator, training_setting['global_lr'])
+            aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'])
             clients = F.update_client_dict(clients, trained_clients)
 
             # INFO - Save client models
