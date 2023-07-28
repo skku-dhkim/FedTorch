@@ -4,6 +4,7 @@ from .. import *
 from torchvision.datasets import *
 from torchvision.transforms import *
 from torch.utils.tensorboard import SummaryWriter
+from collections import Counter
 
 import seaborn as sns
 
@@ -135,12 +136,16 @@ class CustomDataLoader:
             valid_x = client['train']['x'][-indices:]
             valid_y = client['train']['y'][-indices:]
 
-            client['train'] = DatasetWrapper({'x': train_x, 'y': train_y}, transform=self.transform)
+            client['train'] = DatasetWrapper({'x': train_x, 'y': train_y},
+                                             transform=self.transform,
+                                             number_of_categories=self.num_of_categories)
             for idx in range(len(valid_x)):
                 self.valid_set['x'].append(valid_x[idx])
                 self.valid_set['y'].append(valid_y[idx])
 
-            client['test'] = DatasetWrapper({'x': valid_x, 'y': valid_y}, transform=self.transform)
+            client['test'] = DatasetWrapper({'x': valid_x, 'y': valid_y},
+                                            transform=self.transform,
+                                            number_of_categories=self.num_of_categories)
         return clients
 
     def load(self, number_of_clients: int, dirichlet_alpha: float) -> tuple:
@@ -233,10 +238,12 @@ class FedCifar(CustomDataLoader):
 
 
 class DatasetWrapper(Dataset):
-    def __init__(self, data, transform=None):
+    def __init__(self, data, transform=None, number_of_categories=10):
         self.data_x = data['x']
         self.data_y = data['y']
         self.transform = transform
+        self.num_per_class = [0] * number_of_categories
+        self.class_list()
 
     def __len__(self) -> int:
         return len(self.data_x)
@@ -247,3 +254,8 @@ class DatasetWrapper(Dataset):
             copied_x = copy.deepcopy(x)
             x = self.transform(copied_x)
         return x, y
+
+    def class_list(self):
+        _class_count = Counter(self.data_y)
+        for k, v in _class_count.items():
+            self.num_per_class[int(k)] = v
