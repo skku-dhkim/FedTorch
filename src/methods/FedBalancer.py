@@ -134,8 +134,7 @@ def train(client: Client, training_settings: dict, num_of_classes: int):
 
 def local_training(clients: list,
                    training_settings: dict,
-                   num_of_class: int,
-                   experiment_name: str) -> list:
+                   num_of_class: int) -> list:
     """
     Args:
         clients: (list) client list to join the training.
@@ -150,13 +149,11 @@ def local_training(clients: list,
         if training_settings['use_gpu']:
             ray_jobs.append(train.options(num_gpus=training_settings['gpu_frac']).remote(client,
                                                                                          training_settings,
-                                                                                         num_of_class,
-                                                                                         experiment_name))
+                                                                                         num_of_class))
         else:
             ray_jobs.append(train.options().remote(client,
                                                    training_settings,
-                                                   num_of_class,
-                                                   experiment_name))
+                                                   num_of_class))
     trained_result = []
     while len(ray_jobs):
         done_id, ray_jobs = ray.wait(ray_jobs)
