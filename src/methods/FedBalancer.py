@@ -140,7 +140,6 @@ def local_training(clients: list,
         clients: (list) client list to join the training.
         training_settings: (dict) Training setting dictionary
         num_of_class: (int) Number of classes
-        experiment_name: (str) Experiment name
     Returns: (List) Client Object result
 
     """
@@ -291,8 +290,7 @@ def run(client_setting: dict, training_setting: dict, experiment_name: str,
             sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
             trained_clients = local_training(clients=sampled_clients,
                                              training_settings=training_setting,
-                                             num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()],
-                                             experiment_name=experiment_name)
+                                             num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
             stream_logger.debug("[*] Federated aggregation scheme...")
             fed_cat(trained_clients, aggregator, training_setting['global_lr'])
             clients = F.update_client_dict(clients, trained_clients)
