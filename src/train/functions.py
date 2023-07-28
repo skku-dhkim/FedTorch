@@ -67,15 +67,22 @@ def compute_accuracy(model: Module, data_loader: DataLoader, loss_fn: Optional[M
     correct = []
     loss_list = []
     total_len = []
-
     with torch.no_grad():
         for x, y in data_loader:
             x = x.to(device)
             y = y.to(device).to(torch.long)
-            outputs = model(x)
-            if loss_fn is not None:
-                loss = loss_fn(outputs, y)
-                loss_list.append(loss.item())
+
+            if 'SimpleCNN' in str(model.__class__):
+                outputs, feature_map = model(x)
+                if loss_fn:
+                    loss = loss_fn(outputs, y, feature_map)
+                    loss_list.append(loss.item())
+            else:
+                outputs = model(x)
+                if loss_fn:
+                    loss = loss_fn(outputs, y)
+                    loss_list.append(loss.item())
+
             y_max_scores, y_max_idx = outputs.max(dim=1)
             correct.append((y == y_max_idx).sum().item())
             total_len.append(len(x))
@@ -338,7 +345,7 @@ def mark_hessian(model: Module, data_loader: DataLoader, summary_writer: Summary
         if loss_fn is not None:
             loss = loss_fn(outputs, y)
 
-            grad1 = torch.autograd.grad(loss,model.parameters(),create_graph=True)
+            grad1 = torch.autograd.grad(loss, model.parameters(), create_graph=True)
 
             grad1 = torch.cat([grad.flatten() for grad in grad1])
 
