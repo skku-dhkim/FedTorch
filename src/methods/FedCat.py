@@ -1,19 +1,12 @@
-from collections import OrderedDict
-
-import torch
-from torch import Tensor
+import torch.nn
 
 from src.methods import *
 from .utils import *
+from src.losses.loss import FeatureBalanceLoss
 
 
 @ray.remote(max_calls=1)
-def train(
-        client: Client,
-        training_settings: dict,
-        num_of_classes: int,
-        experiment_name: str,
-        early_stopping: bool = False):
+def train(client: Client, training_settings: dict, num_of_classes: int):
     device = "cuda" if torch.cuda.is_available() is True else "cpu"
 
     # INFO: Unblock the code if you use M1 GPU
@@ -26,9 +19,10 @@ def train(
     model.load_state_dict(client.model)
     model = model.to(device)
 
-    # model_g = model_call(training_settings['model'], num_of_classes)
+    # model_g = model_call(training_settings['model'], num_of_classes, threshold=0)
     # model_g.load_state_dict(client.model)
     # model_g = model_g.to(device)
+    # model_g.eval()
 
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
@@ -43,15 +37,13 @@ def train(
         optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
                           lr=training_settings['local_lr'])
 
-    loss_fn = torch.nn.CrossEntropyLoss().to(device)
-
-    # model_state_dict = filter_pruning(model.state_dict(), model.activation_counts, pruning_rate=0.2)
-    # model.load_state_dict(model_state_dict)
-    # model.fc.requires_grad_(False)
+    # loss_fn = torch.nn.CrossEntropyLoss().to(device)
+    loss_fn = FeatureBalanceLoss(client.num_per_class,
+                                 training_settings['global_iter'], len(client.global_iter)).to(device)
 
     # INFO: Local training logic
     for _ in range(training_settings['local_epochs']):
-        model.init_activation_counter()
+
         # INFO: Training steps
         for x, y in client.train_loader:
             inputs = x.to(device)
@@ -62,28 +54,17 @@ def train(
 
             optim.zero_grad()
 
-            outputs = model(inputs)
-
+            outputs, feature_map = model(inputs)
             # model_g.train()
             # model_g.to(device)
-            # global_outputs = model_g(inputs)
+            # global_outputs, _ = model_g(inputs)
 
-            # one_hot = F.one_hot_encode(labels.detach(), num_classes=num_of_classes, device=device)
-
-            # cross_entropy_loss = loss_fn(outputs, labels)
-            # outputs_kl_loss = F.loss_fn_kd(outputs, global_outputs.detach(),
-            #                                alpha=0.5,
-            #                                temperature=training_settings['kl_temp'])
-
-            loss = loss_fn(outputs, labels)
-            # loss = cross_entropy_loss + outputs_kl_loss
-
+            loss = loss_fn(outputs, labels, feature_map)
             loss.backward()
             optim.step()
+            # client.step_counter += 1
 
-        model_state_dict = filter_pruning(model.state_dict(), pruning_rate=0.2)
-        model.load_state_dict(model_state_dict)
-        client.activation_counts = model.activation_count
+        # client.activation_counts = model.activation_count
 
         client.epoch_counter += 1
         training_acc, training_losses = F.compute_accuracy(model, client.train_loader, loss_fn)
@@ -107,58 +88,48 @@ def train(
     return client
 
 
-# NOTE: Codebook may not be necessary if we prune the fc layer and bias either
-def get_codebook(model: OrderedDict):
-    codebook = list()
-    for k, v in model.items():
-        if 'features' in k and 'weight' in k:
-            codebook.append(k)
-        elif 'fc' in k and 'weight' in k:
-            codebook.append(k)
-    return codebook
+# # NOTE: Codebook may not be necessary if we prune the fc layer and bias either
+# def get_codebook(model: OrderedDict):
+#     codebook = list()
+#     for k, v in model.items():
+#         if 'features' in k and 'weight' in k:
+#             codebook.append(k)
+#         elif 'fc' in k and 'weight' in k:
+#             codebook.append(k)
+#     return codebook
 
 
-def filter_pruning(model: OrderedDict, pruning_rate: float, activation_counts: Optional[OrderedDict] = None) -> OrderedDict:
-    filter_index = None
-    fc_index = None
-    for name in model.keys():
-        if 'features' in name:
-            if filter_index is None:
-                filter_pruned_num = int(model[name].size()[0] * pruning_rate)
-                weight_vec = model[name].view(model[name].size()[0], -1)
-                # NOTE: l1_norm also need to be tested.
-                norm_vector = weight_vec.norm(p=2, dim=1).cpu().numpy()
-                # norm_vector = weight_vec.norm(p=1, dim=1).cpu().numpy()
-                filter_index = norm_vector.argsort()[:filter_pruned_num]
-                for index in filter_index:
-                    model[name][index] = torch.zeros_like(model[name][index])
-            else:
-                for index in filter_index:
-                    model[name][index] = torch.zeros_like(model[name][index])
-                filter_index = None
-        elif 'fc' in name:
-            # INFO: FC layers
-            if activation_counts:
-                if fc_index is None:
-                    # NOTE: Pruning never activated neuron
-                    # zero_indices = torch.squeeze(torch.nonzero(activation_counts[name] == 0))
-                    # fc_index = zero_indices
-                    # NOTE: Pruning with pruning rate
-                    pruning_indices = int(len(activation_counts[name]) * pruning_rate)
-                    _, indices = activation_counts[name].sort(axis=0)
-                    fc_index = indices[:pruning_indices]
-                    # NOTE: Pruning with std
-                    # std = torch.std(activation_counts[name])
-                    # indices = torch.squeeze(torch.nonzero(activation_counts[name] <= std))
-                    # fc_index = indices
-                    model[name][fc_index] = 0
-                else:
-                    model[name][fc_index] = 0
-                    fc_index = None
-        else:
-            # INFO: Logit layer
-            continue
-    return model
+# def filter_pruning(model: OrderedDict, pruning_rate: float, activation_counts: Optional[OrderedDict] = None) -> OrderedDict:
+#     filter_index = None
+#     fc_index = None
+#     for name in model.keys():
+#         if 'features' in name:
+#             if filter_index is None:
+#                 filter_pruned_num = int(model[name].size()[0] * pruning_rate)
+#                 weight_vec = model[name].view(model[name].size()[0], -1)
+#
+#                 # NOTE: l1_norm also need to be tested.
+#                 norm_vector = weight_vec.norm(p=2, dim=1).cpu().numpy()
+#                 # norm_vector = weight_vec.norm(p=1, dim=1).cpu().numpy()
+#                 filter_index = norm_vector.argsort()[:filter_pruned_num]
+#                 # print("Filter index: ", filter_index)
+#
+#                 for index in filter_index:
+#                     zero_weight = torch.zeros_like(model[name][index], requires_grad=True)
+#                     # print(zero_weight.size())
+#                     # torch.nn.init.xavier_uniform_(zero_weight)
+#                     # model[name][index] = torch.zeros_like(model[name][index], requires_grad=True)
+#                     model[name][index] = zero_weight
+#             else:
+#                 for index in filter_index:
+#                     zero_weight = torch.zeros_like(model[name][index], requires_grad=True)
+#                     # torch.nn.init.xavier_uniform_(zero_weight)
+#                     model[name][index] = torch.zeros_like(zero_weight)
+#                 filter_index = None
+#         else:
+#             # INFO: Logit layer
+#             continue
+#     return model
 
 
 def local_training(clients: list,
@@ -194,9 +165,14 @@ def local_training(clients: list,
     return trained_result
 
 
-def fed_cat(clients: List[FedCat_Client], aggregator: Aggregator, global_lr: float, model_save: bool = False):
+def fed_cat(clients: List[FedCat_Client], aggregator: Aggregator, model_save: bool = False):
+    # for i, client in enumerate(clients):
+    #     print("Index-{}: Client ID-{}".format(i, client.name))
+
+    # previous_g_model = aggregator.model.state_dict()
     empty_model = OrderedDict((key, []) for key in aggregator.model.state_dict().keys())
-    empty_activation_counter = OrderedDict((key, []) for key in aggregator.model.state_dict().keys())
+    # empty_global_model = OrderedDict((key, None) for key in aggregator.model.state_dict().keys())
+    # empty_activation_counter = OrderedDict((key, []) for key in aggregator.model.state_dict().keys())
 
     # INFO: Collect the weights from all client in a same layer.
     for k, v in aggregator.model.state_dict().items():
@@ -205,74 +181,38 @@ def fed_cat(clients: List[FedCat_Client], aggregator: Aggregator, global_lr: flo
         empty_model[k] = torch.stack(empty_model[k])
 
     # INFO: Collect the activation counter
-    for k, v in aggregator.model.state_dict().items():
-        if 'fc' in k and 'weight' in k:
-            for client in clients:
-                empty_activation_counter[k].append(client.activation_counts[k])
-            empty_activation_counter[k] = torch.stack(empty_activation_counter[k])
-
-    features_indices = None
-    fc_indices = None
+    # for k, v in aggregator.model.state_dict().items():
+    #     if 'fc' in k and 'weight' in k:
+    #         for client in clients:
+    #             # aggregator.summary_writer.add_histogram('Client-{}-ActCounter/{}'.format(client.name, k),
+    #             #                                         client.activation_counts[k], aggregator.global_iter)
+    #             normalized = F.min_max_normalization(client.activation_counts[k])
+    #             empty_activation_counter[k].append(normalized)
+    #             # empty_activation_counter[k].append(client.activation_counts[k])
+    #         empty_activation_counter[k] = torch.stack(empty_activation_counter[k])
+    # for k, v in empty_activation_counter.items():
+    #     v = torch.Tensor(v)
+    #     sorted_v, idx = v.sort(axis=0)
+    #
+    # TODO: Compare the weight differences between global and local classifier
+    fc_importance_score = None
 
     for name, v in empty_model.items():
-        if 'features' in name:
-            if features_indices is None:
-                # INFO: To have client index who has largest norm distance.
-                weight_vec = v.view(v.size()[0], v.size()[1], -1)
-                norm_vector = weight_vec.norm(p=2, dim=2)
-                # INFO: Select the client who has largest norm distance
-                _, indices = norm_vector.sort(axis=0, descending=True)
-                features_indices = indices[0]
-                # INFO: (Client, out_channel, in_channel, H, W) -> (out_channel, Client, in_channel, H, W)
-                weights = v.permute((1, 0, 2, 3, 4))
-                selected_tensor = []
-                # INFO: Iterate every output channel
-                for i, w in enumerate(weights):
-                    # INFO: Put the output channel from selected client.
-                    # INFO: 각 output 채널에서 norm vector distance가 가장 큰 클 라이언트의 가중치(weight)와 편향(bias)를 반영
-                    selected_tensor.append(w[features_indices[i]])
-                selected = torch.stack(selected_tensor)
-                empty_model[name] = selected
+        if 'fc' in name:
+            if fc_importance_score is None:
+                fc_importance_score = calculate_filter_importance(v, type='prob', layer=name)
+                empty_model[name] = torch.sum(fc_importance_score * v, dim=0)
             else:
-                # INFO: Same mechanism for bias
-                weights = v.permute((1, 0))
-                selected_tensor = []
-                for i, w in enumerate(weights):
-                    selected_tensor.append(w[features_indices[i]])
-                selected = torch.stack(selected_tensor)
-                empty_model[name] = selected
-                features_indices = None
-
-        # elif 'fc' in name:
-        #     if fc_indices is None:
-        #         # INFO: empty_activation_counter[name] := (Client, Number of Neurons)
-        #         counter_vector = empty_activation_counter[name]
-        #         _, indices = counter_vector.sort(axis=0, descending=True)
-        #         fc_indices = indices[-1]
-        #
-        #         # INFO: v:= (Client, Output channel, Input channel) -> (Output channel, Client, Input channel)
-        #         weights = v.permute((1, 0, 2))
-        #         selected_tensor = []
-        #         for i, w in enumerate(weights):
-        #             selected_tensor.append(w[fc_indices[i]])
-        #         selected = torch.stack(selected_tensor)
-        #         empty_model[name] = selected
-        #     else:
-        #         # INFO: Same for bias
-        #         weights = v.permute((1, 0))
-        #         selected_tensor = []
-        #         for i, w in enumerate(weights):
-        #             selected_tensor.append(w[fc_indices[i]])
-        #         selected = torch.stack(selected_tensor)
-        #         empty_model[name] = selected
-        #         fc_indices = None
+                # INFO: Same for bias
+                fc_importance_score = fc_importance_score.squeeze(1)
+                empty_model[name] = torch.sum(fc_importance_score * v, dim=0)
+                fc_importance_score = None
         else:
-            # NOTE: Averaging the logit.
-            # print("Name: {}, Size: {}".format(name, v.size()))
+            # NOTE: Averaging the Feature extractor and the logit.
             empty_model[name] = torch.mean(v, 0)
-            # print("Name: {}, Size: {}".format(name, empty_model[name].size()))
 
-
+    # empty_model = OrderedDict()
+    # total_len = 0
     # # INFO: Original FedAvg
     # for client in clients:
     #     total_len += client.data_len()
@@ -280,27 +220,43 @@ def fed_cat(clients: List[FedCat_Client], aggregator: Aggregator, global_lr: flo
     # for k, v in aggregator.model.state_dict().items():
     #     for client in clients:
     #         if k not in empty_model.keys():
-    #             empty_model[k] = client.model[k] * (client.data_len() / total_len) * global_lr
+    #             # empty_model[k] = client.model[k] * (client.data_len() / total_len) * global_lr
+    #             empty_model[k] = client.model[k] * (1 / 10) * global_lr
+    #
     #         else:
-    #             empty_model[k] += client.model[k] * (client.data_len() / total_len) * global_lr
+    #             empty_model[k] += client.model[k] * (1 / 10) * global_lr
+    #             # empty_model[k] = client.model[k] * (client.data_len() / total_len) * global_lr
 
-    # Global model updates
-    aggregator.set_parameters(empty_model, strict=False)
+    # NOTE: Global model updates
+    aggregator.set_parameters(empty_model, strict=True)
     aggregator.global_iter += 1
 
     aggregator.test_accuracy = aggregator.compute_accuracy()
 
     # TODO: Adapt in a future.
-    # Calculate cos_similarity with previous representations
-    # aggregator.calc_rep_similarity()
-    #
-    # # Calculate cos_similarity of weights
-    # current_model = self.get_parameters()
-    # self.calc_cos_similarity(original_model, current_model)
     aggregator.summary_writer.add_scalar('global_test_acc', aggregator.test_accuracy, aggregator.global_iter)
 
     if model_save:
         aggregator.save_model()
+
+
+def calculate_filter_importance(vector, **kwargs):
+    weight_vec = vector.view(vector.size()[0], -1)
+    norm_vector = weight_vec.norm(p=2, dim=-1)
+    norm_vector = 1 / norm_vector
+
+    if 'prob' in kwargs['type']:
+        base = torch.sum(norm_vector, dim=0)
+        norm_vector = norm_vector/base
+    elif 'softmax' in kwargs['type']:
+        norm_vector = torch.softmax(norm_vector, dim=0)
+    else:
+        pass
+
+    if 'features' in kwargs['layer']:
+        return norm_vector.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+    else:
+        return norm_vector.unsqueeze(-1).unsqueeze(-1)
 
 
 def run(client_setting: dict, training_setting: dict, experiment_name: str,
@@ -358,8 +314,6 @@ def run(client_setting: dict, training_setting: dict, experiment_name: str,
         system_logger, _ = get_logger(LOGGER_DICT['system'])
         system_logger.error(traceback.format_exc())
         raise Exception(traceback.format_exc())
-    finally:
-        wandb.finish()
 
     end_run_time = time.time()
     summary_logger.info("Global Running time: {:.2f}".format(end_run_time - start_runtime))
