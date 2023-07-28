@@ -4,7 +4,7 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg, FedKL, FedConst, Fedprox,Scaffold,MOON, FedCat # FedIndi,
+from src.methods import FedAvg, FedKL, FedConst, Fedprox, Scaffold, MOON, FedBalancer # FedIndi,
 
 import argparse
 import os
@@ -118,8 +118,10 @@ if __name__ == '__main__':
         # INFO: Run Function
         # TODO: Make additional Federated method
         # FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        FedCat.run(client_settings, train_settings, experiment_name,
-                   b_save_model=args.save_model, b_save_data=args.save_data)
+        FedBalancer.run(client_settings, train_settings, experiment_name,
+                        b_save_model=args.save_model, b_save_data=args.save_data)
+        # FedAD.run(client_settings, train_settings, experiment_name,
+        #           b_save_model=args.save_model, b_save_data=args.save_data)
         # FedIndi.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
         # FedAvg.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
         # Fedprox.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)

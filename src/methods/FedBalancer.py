@@ -117,7 +117,7 @@ def local_training(clients: list,
     return trained_result
 
 
-def aggregation_balancer(clients: List[FedBalancerClient], aggregator: Aggregator, model_save: bool = False):
+def aggregation_balancer(clients: List[FedBalancerClient], aggregator: AggregationBalancer, model_save: bool = False):
     # for i, client in enumerate(clients):
     #     print("Index-{}: Client ID-{}".format(i, client.name))
 
@@ -221,7 +221,8 @@ def run(client_setting: dict, training_setting: dict, experiment_name: str,
 
     # INFO - Client initialization
     client = FedBalancerClient
-    clients, aggregator = client_initialize(client, fed_dataset, test_loader, valid_loader,
+    aggregator = AggregationBalancer
+    clients, aggregator = client_initialize(client, aggregator, fed_dataset, test_loader, valid_loader,
                                             client_setting, training_setting)
     start_runtime = time.time()
     # INFO - Training Global Steps

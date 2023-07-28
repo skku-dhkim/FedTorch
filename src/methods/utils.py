@@ -24,7 +24,7 @@ def data_preprocessing(client_settings: dict) -> Tuple[list, DataLoader, DataLoa
     return fed_dataset, valid_loader, test_loader
 
 
-def client_initialize(client, fed_dataset: list, valid_loader: DataLoader, test_loader: DataLoader,
+def client_initialize(client, aggregator, fed_dataset: list, valid_loader: DataLoader, test_loader: DataLoader,
                       client_settings: dict, train_settings: dict) -> Tuple[Dict[str, Any], Aggregator]:
     # import ray
     stream_logger, _ = get_logger(LOGGER_DICT['stream'])
@@ -53,10 +53,10 @@ def client_initialize(client, fed_dataset: list, valid_loader: DataLoader, test_
         stream_logger.info("[3] Create Aggregator(Federated Server Container)...")
         start = time.time()
 
-        aggregator = Aggregator(test_loader, valid_loader,
-                                client_settings['dataset'].lower(),
-                                log_path=LOGGER_DICT['path'],
-                                train_settings=train_settings)
+        aggregator_obj = aggregator(test_loader, valid_loader,
+                                    client_settings['dataset'].lower(),
+                                    log_path=LOGGER_DICT['path'],
+                                    train_settings=train_settings)
 
         stream_logger.info("Aggregation container created successfully.")
         summary_logger.info("Aggregator initializing time: {:.2f}".format(time.time() - start))
@@ -65,7 +65,7 @@ def client_initialize(client, fed_dataset: list, valid_loader: DataLoader, test_
         system_logger.error(traceback.format_exc())
         raise Exception(traceback.format_exc())
 
-    return clients, aggregator
+    return clients, aggregator_obj
 
 
 def save_data(clients: dict):

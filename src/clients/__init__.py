@@ -2,7 +2,7 @@ from torch.optim import *
 from torch.utils.tensorboard import SummaryWriter
 from collections import OrderedDict
 from src.clients.fed_clients import Client, FedBalancerClient
-from src.clients.aggregator import Aggregator
+from src.clients.aggregator import Aggregator, AggregationBalancer
 
 
 def call_optimizer(optimizer_name: str):
@@ -23,6 +23,7 @@ __all__ = [
     'OrderedDict',
     'Client',
     'Aggregator',
-    'FedBalancerClient'
+    'FedBalancerClient',
+    'AggregationBalancer'
     # 'FedKL_Client'
 ]

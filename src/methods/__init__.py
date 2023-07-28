@@ -1,7 +1,9 @@
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from src.utils.logger import get_logger, LOGGER_DICT
-from src.clients import Client, Aggregator, FedBalancerClient
+from src.clients import FedBalancerClient, AggregationBalancer
+from src.clients import Client, Aggregator
+
 from torch.utils.tensorboard import SummaryWriter
 from src.model import NUMBER_OF_CLASSES, model_call
 from src.train import call_optimizer
@@ -17,7 +19,8 @@ __all__ = [
     'tqdm',
     'get_logger',
     'LOGGER_DICT',
-    'Client', 'Aggregator', 'FedBalancerClient',
+    'Client', 'Aggregator',
+    'FedBalancerClient', 'AggregationBalancer',
     'ray',
     'torch',
     'SummaryWriter',
