@@ -171,7 +171,7 @@ def loss_fn_kd(input_distribution: torch.Tensor, target_distribution: torch.Tens
     return torch.nan_to_num(KD_loss)
 
 
-def one_hot_encode(labels: torch.Tensor, num_classes: int, device: torch.device) -> torch.Tensor:
+def one_hot_encode(labels: torch.Tensor, num_classes: int) -> torch.Tensor:
     """
     Do one-hot encoding for labels.
     Args:
@@ -180,7 +180,7 @@ def one_hot_encode(labels: torch.Tensor, num_classes: int, device: torch.device)
         device: (torch.device) In-memory device.
     Returns: (torch.Tensor) one_hot encoded tensor.
     """
-    one_hot = torch.zeros(labels.size(0), num_classes, device=device)
+    one_hot = torch.zeros(labels.size(0), num_classes)
     one_hot.scatter_(1, labels.unsqueeze(1), 1)
     return one_hot
 
