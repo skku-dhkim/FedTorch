@@ -1,6 +1,7 @@
 import copy
 
 from .. import *
+from src.utils.logger import write_experiment_summary
 from torchvision.datasets import *
 from torchvision.transforms import *
 from torch.utils.tensorboard import SummaryWriter
@@ -37,8 +38,10 @@ class CustomDataLoader:
             DataFrame: Client data distribution for iid-ness.
         """
         # Get dirichlet distribution
-        # Set a random seed for fixed data distribution
-        np.random.seed(2023)
+        # NOTE: We will use seed value of 2023, 2024, 2025, 2026 and 2027 for experiment.
+        seed = 2023
+        write_experiment_summary('Data loader', {'seed': seed})
+        np.random.seed(seed)
         s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
         c_dist = pd.DataFrame(s)
 
