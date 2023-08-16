@@ -27,13 +27,26 @@ class Aggregator:
         # Model
         self.model: Module = model_call(train_settings['model'], NUMBER_OF_CLASSES[dataset_name])
 
+        main_dir = Path(log_path).parent.absolute()
+        root_dir = Path("./logs").absolute()
+
+        # NOTE: We will use same initial model for same experiment.
+        if main_dir == root_dir:
+            pass
+        elif os.path.isfile(os.path.join(main_dir, 'init_model.pt')):
+            weights = torch.load(os.path.join(main_dir, 'init_model.pt'))
+            self.model.load_state_dict(weights)
+        else:
+            torch.save(self.model.state_dict(), os.path.join(main_dir, 'init_model.pt'))
+
         # Log path
         self.summary_path = os.path.join(log_path, "{}".format(self.name))
         self.summary_writer = SummaryWriter(os.path.join(self.summary_path, "summaries"))
 
         # Device setting
-        # self.device = "cuda" if train_settings['use_gpu'] is True else "cpu"
-        self.device = "cpu"
+        self.device = "cuda" if train_settings['use_gpu'] is True else "cpu"
+        # TODO: Device check is needed.
+        # self.device = "cpu"
         self.model.to(self.device)
 
         # Federated learning method settings

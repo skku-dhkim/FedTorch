@@ -36,8 +36,10 @@ class CustomDataLoader:
             DataFrame: Client data distribution for iid-ness.
         """
         # Get dirichlet distribution
-        # NOTE: We will use seed value of 2023, 2024, 2025, 2026 and 2027 for experiment.
-        if os.path.isfile(os.path.join(self.main_dir, 'seed.txt')):
+        # NOTE: If doesn't have sub-directory, manual seed is used.
+        if self.main_dir == Path("./logs").absolute():
+            seed = 2023
+        elif os.path.isfile(os.path.join(self.main_dir, 'seed.txt')):
             with open(os.path.join(self.main_dir, 'seed.txt'), 'r') as f:
                 seed = f.read().strip()
                 seed = int(seed)
