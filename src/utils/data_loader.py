@@ -1,12 +1,10 @@
-import copy
-
 from .. import *
-from src.utils.logger import write_experiment_summary
 from torchvision.datasets import *
 from torchvision.transforms import *
 from torch.utils.tensorboard import SummaryWriter
 from collections import Counter
 
+import copy
 import seaborn as sns
 
 
@@ -23,9 +21,9 @@ class CustomDataLoader:
         self.num_of_categories = len(train_data.classes)
         self.categories_train_X, self.categories_train_Y = None, None
 
+        self.main_dir = Path(log_path).parent.absolute()
         self.log_path = os.path.join(log_path, "client_meta")
         os.makedirs(self.log_path, exist_ok=True)
-
         self.transform = transform
 
     def _data_sampling(self, dirichlet_alpha: float, num_of_clients: int, num_of_classes: int) -> pd.DataFrame:
@@ -39,8 +37,15 @@ class CustomDataLoader:
         """
         # Get dirichlet distribution
         # NOTE: We will use seed value of 2023, 2024, 2025, 2026 and 2027 for experiment.
-        seed = 2023
-        write_experiment_summary('Data loader', {'seed': seed})
+        if os.path.isfile(os.path.join(self.main_dir, 'seed.txt')):
+            with open(os.path.join(self.main_dir, 'seed.txt'), 'r') as f:
+                seed = f.read().strip()
+                seed = int(seed)
+        else:
+            with open(os.path.join(self.main_dir, 'seed.txt'), 'w') as f:
+                seed = random.randint(1, int(1e+4))
+                f.write(str(seed))
+
         np.random.seed(seed)
         s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
         c_dist = pd.DataFrame(s)

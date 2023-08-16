@@ -2,6 +2,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn.parameter import Parameter
 from typing import Union, Optional, Tuple, Dict, Any, List, Callable
 from collections import OrderedDict
+from pathlib import Path
 
 import os
 import numpy as np
@@ -21,6 +22,7 @@ __all__ = [
     'pd',
     'random',
     'traceback',
-    'time'
+    'time',
+    'Path'
 ]
 
