@@ -1,8 +1,10 @@
 import torch.nn
+import math
 
 from src.methods import *
 from .utils import *
 from src.losses.loss import FeatureBalanceLoss
+from src.clients import FedBalancerClient, AggregationBalancer
 
 
 @ray.remote(max_calls=1)
@@ -13,16 +15,18 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
     # device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
+    csvfile = open(os.path.join(client.summary_path, "experiment_result.csv"), "a", newline='')
+    csv_writer = csv.writer(csvfile)
 
     # INFO - Call the model architecture and set parameters.
-    model = model_call(training_settings['model'], num_of_classes, threshold=0)
+    model = model_call(training_settings['model'], num_of_classes)
     model.load_state_dict(client.model)
     model = model.to(device)
 
-    # model_g = model_call(training_settings['model'], num_of_classes, threshold=0)
-    # model_g.load_state_dict(client.model)
-    # model_g = model_g.to(device)
-    # model_g.eval()
+    model_g = model_call(training_settings['model'], num_of_classes)
+    model_g.load_state_dict(client.model)
+    model_g = model_g.to(device)
+    model_g.eval()
 
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
@@ -37,12 +41,10 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
         optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
                           lr=training_settings['local_lr'])
 
-    # loss_fn = torch.nn.CrossEntropyLoss().to(device)
-    loss_fn = FeatureBalanceLoss(client.num_per_class,
-                                 training_settings['global_iter'], len(client.global_iter)).to(device)
+    loss_fn = FeatureBalanceLoss(total_local_epochs=training_settings['local_epochs']).to(device)
 
     # INFO: Local training logic
-    for _ in range(training_settings['local_epochs']):
+    for i in range(training_settings['local_epochs']):
 
         # INFO: Training steps
         for x, y in client.train_loader:
@@ -55,20 +57,19 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
             optim.zero_grad()
 
             outputs, feature_map = model(inputs)
-            # model_g.train()
-            # model_g.to(device)
-            # global_outputs, _ = model_g(inputs)
 
-            loss = loss_fn(outputs, labels, feature_map)
+            model_g.train()
+            model_g.to(device)
+            global_outputs, _ = model_g(inputs)
+
+            loss = loss_fn(outputs, global_outputs, labels, feature_map, i)
+
             loss.backward()
             optim.step()
-            # client.step_counter += 1
-
-        # client.activation_counts = model.activation_count
 
         client.epoch_counter += 1
-        training_acc, training_losses = F.compute_accuracy(model, client.train_loader, loss_fn)
-        test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn)
+        training_acc, training_losses = F.compute_accuracy(model, client.train_loader, loss_fn, global_model=model_g)
+        test_acc, test_losses = F.compute_accuracy(model, client.train_loader, loss_fn, global_model=model_g)
 
         # INFO - Epoch summary
         summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
@@ -76,15 +77,11 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
         summary_writer.add_scalar('acc/test', test_acc, client.epoch_counter)
         summary_writer.add_scalar('loss/test', test_losses, client.epoch_counter)
 
-        # F.mark_accuracy(model_l=model, model_g=model_g, dataloader=client.train_loader, summary_writer=summary_writer,
-        #                 tag='epoch_metric/train_data', epoch=client.epoch_counter)
-        #
-        # F.mark_accuracy(model_l=model, model_g=model_g, dataloader=client.test_loader, summary_writer=summary_writer,
-        #                 tag='epoch_metric/test_data', epoch=client.epoch_counter)
+        csv_writer.writerow([training_acc, training_losses, test_acc, test_losses])
 
     # INFO - Local model update
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
-
+    csvfile.close()
     return client
 
 
@@ -117,14 +114,12 @@ def local_training(clients: list,
     return trained_result
 
 
-def aggregation_balancer(clients: List[FedBalancerClient], aggregator: AggregationBalancer, model_save: bool = False):
-    # for i, client in enumerate(clients):
-    #     print("Index-{}: Client ID-{}".format(i, client.name))
+def aggregation_balancer(clients: List[FedBalancerClient],
+                         aggregator: Union[Aggregator, AggregationBalancer],
+                         model_save: bool = False):
 
-    # previous_g_model = aggregator.model.state_dict()
+    previous_g_model = aggregator.model.state_dict()
     empty_model = OrderedDict((key, []) for key in aggregator.model.state_dict().keys())
-    # empty_global_model = OrderedDict((key, None) for key in aggregator.model.state_dict().keys())
-    # empty_activation_counter = OrderedDict((key, []) for key in aggregator.model.state_dict().keys())
 
     # INFO: Collect the weights from all client in a same layer.
     for k, v in aggregator.model.state_dict().items():
@@ -132,52 +127,16 @@ def aggregation_balancer(clients: List[FedBalancerClient], aggregator: Aggregati
             empty_model[k].append(client.model[k])
         empty_model[k] = torch.stack(empty_model[k])
 
-    # INFO: Collect the activation counter
-    # for k, v in aggregator.model.state_dict().items():
-    #     if 'fc' in k and 'weight' in k:
-    #         for client in clients:
-    #             # aggregator.summary_writer.add_histogram('Client-{}-ActCounter/{}'.format(client.name, k),
-    #             #                                         client.activation_counts[k], aggregator.global_iter)
-    #             normalized = F.min_max_normalization(client.activation_counts[k])
-    #             empty_activation_counter[k].append(normalized)
-    #             # empty_activation_counter[k].append(client.activation_counts[k])
-    #         empty_activation_counter[k] = torch.stack(empty_activation_counter[k])
-    # for k, v in empty_activation_counter.items():
-    #     v = torch.Tensor(v)
-    #     sorted_v, idx = v.sort(axis=0)
-    #
-    # TODO: Compare the weight differences between global and local classifier
-    fc_importance_score = None
-
+    # importance_score = client_importance_score(empty_model['logit.weight'], 'cos', previous_g_model['logit.weight'])
     for name, v in empty_model.items():
-        if 'fc' in name:
-            if fc_importance_score is None:
-                fc_importance_score = calculate_filter_importance(v, type='prob', layer=name)
-                empty_model[name] = torch.sum(fc_importance_score * v, dim=0)
-            else:
-                # INFO: Same for bias
-                fc_importance_score = fc_importance_score.squeeze(1)
-                empty_model[name] = torch.sum(fc_importance_score * v, dim=0)
-                fc_importance_score = None
-        else:
-            # NOTE: Averaging the Feature extractor and the logit.
+        if 'features' in name:
+            # NOTE: Averaging the Feature extractor.
             empty_model[name] = torch.mean(v, 0)
-
-    # empty_model = OrderedDict()
-    # total_len = 0
-    # # INFO: Original FedAvg
-    # for client in clients:
-    #     total_len += client.data_len()
-    #
-    # for k, v in aggregator.model.state_dict().items():
-    #     for client in clients:
-    #         if k not in empty_model.keys():
-    #             # empty_model[k] = client.model[k] * (client.data_len() / total_len) * global_lr
-    #             empty_model[k] = client.model[k] * (1 / 10) * global_lr
-    #
-    #         else:
-    #             empty_model[k] += client.model[k] * (1 / 10) * global_lr
-    #             # empty_model[k] = client.model[k] * (client.data_len() / total_len) * global_lr
+        else:
+            # NOTE: FC layer and logit are aggregated with importance score.
+            importance_score = client_importance_score(empty_model[name], 'cos', previous_g_model[name])
+            score = shape_convert(importance_score, name)
+            empty_model[name] = torch.sum(score * v, dim=0)
 
     # NOTE: Global model updates
     aggregator.set_parameters(empty_model, strict=True)
@@ -192,27 +151,64 @@ def aggregation_balancer(clients: List[FedBalancerClient], aggregator: Aggregati
         aggregator.save_model()
 
 
-def calculate_filter_importance(vector, **kwargs):
-    weight_vec = vector.view(vector.size()[0], -1)
-    norm_vector = weight_vec.norm(p=2, dim=-1)
-    norm_vector = 1 / norm_vector
+def client_importance_score(vector, method, global_model, normalize: bool = True, sigma=1):
+    weight_vec = vector.view(vector.size()[0], vector.size()[1], -1)
 
-    if 'prob' in kwargs['type']:
-        base = torch.sum(norm_vector, dim=0)
-        norm_vector = norm_vector/base
-    elif 'softmax' in kwargs['type']:
-        norm_vector = torch.softmax(norm_vector, dim=0)
+    if method == 'euclidean'.lower():
+        g_vector = global_model.view(global_model.size()[0], -1).unsqueeze(0)
+        # NOTE: Lower the distance less changes from global
+        vector = torch.norm(g_vector - weight_vec, p=2, dim=-1)
+
+        # NOTE: Make distance 0 if distance lower than standard deviation.
+        std, mean = torch.std_mean(vector, dim=0)
+        threshold = mean - sigma * std
+        vector[vector < threshold] = 0
+
+        # NOTE: Squeeze the dimension
+        vector = vector.norm(p=2, dim=-1)
+        score_vector = torch.exp(-vector)
+
+    elif method == 'cos'.lower():
+        g_vector = global_model.view(global_model.size()[0], -1).unsqueeze(0)
+
+        cos_similarity = torch.nn.CosineSimilarity(dim=-1)
+
+        # NOTE: More similar large similarity value -> large similarity means small changes occurs from global model.
+        similarity = torch.abs(cos_similarity(g_vector, weight_vec))
+
+        # NOTE: Make it 1 for small changes weight unit.
+        std, mean = torch.std_mean(similarity, dim=0)
+        threshold = mean + sigma * std
+        similarity[similarity > threshold] = 1
+
+        # NOTE: Squeeze the dimension
+        score_vector = similarity.norm(p=2, dim=-1)
     else:
-        pass
+        raise NotImplementedError('Method {} is not implemented'.format(method))
 
-    if 'features' in kwargs['layer']:
-        return norm_vector.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+    if normalize:
+        score_vector = torch.softmax(score_vector, dim=0)
+        # print(score_vector)
+    # if 'prob' in normalize:
+    #     base = torch.sum(vector, dim=0)
+    #     vector = vector / base
+    return score_vector
+
+
+def shape_convert(score, layer):
+    if 'bias' in layer:
+        return score.unsqueeze(-1)
+    if 'features' in layer:
+        return score.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+    elif 'fc' in layer:
+        return score.unsqueeze(-1).unsqueeze(-1)
+    elif 'logit' in layer:
+        return score.unsqueeze(-1).unsqueeze(-1)
     else:
-        return norm_vector.unsqueeze(-1).unsqueeze(-1)
+        return score
 
 
-def run(client_setting: dict, training_setting: dict, experiment_name: str,
-        b_save_model: bool = False, b_save_data: bool = False):
+def run(client_setting: dict, training_setting: dict):
     stream_logger, _ = get_logger(LOGGER_DICT['stream'])
     summary_logger, _ = get_logger(LOGGER_DICT['summary'])
 
@@ -221,16 +217,19 @@ def run(client_setting: dict, training_setting: dict, experiment_name: str,
 
     # INFO - Client initialization
     client = FedBalancerClient
-    aggregator = AggregationBalancer
+    aggregator: type(AggregationBalancer) = AggregationBalancer
     clients, aggregator = client_initialize(client, aggregator, fed_dataset, test_loader, valid_loader,
                                             client_setting, training_setting)
     start_runtime = time.time()
     # INFO - Training Global Steps
     try:
-        stream_logger.info("[3] Global step starts...")
+        stream_logger.info("[4] Global step starts...")
 
-        pbar = tqdm(range(training_setting['global_iter']), desc="Global steps #",
+        pbar = tqdm(range(training_setting['global_epochs']), desc="Global steps #",
                     postfix={'global_acc': aggregator.test_accuracy})
+
+        initial_lr = training_setting['local_lr']
+        total_g_epochs = training_setting['global_epochs']
 
         for gr in pbar:
             start_time_global_iter = time.time()
@@ -242,19 +241,25 @@ def run(client_setting: dict, training_setting: dict, experiment_name: str,
             stream_logger.debug("[*] Client downloads the model from aggregator...")
             F.model_download(aggregator=aggregator, clients=clients)
 
-            stream_logger.debug("[*] Local training process...")
-            # INFO - Normal Local Training
+            stream_logger.debug("[*] Client sampling...")
+            # INFO - Client sampling
             sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
+
+            # INFO - COS decay
+            training_setting['local_lr'] = 1/2*initial_lr*(1+math.cos(aggregator.global_iter*math.pi/total_g_epochs))
+            stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
+            summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
+                                                                                 total_g_epochs,
+                                                                                 training_setting['local_lr']))
+            # INFO - Local Training
+            stream_logger.debug("[*] Local training process...")
             trained_clients = local_training(clients=sampled_clients,
                                              training_settings=training_setting,
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
+
             stream_logger.debug("[*] Federated aggregation scheme...")
             aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'])
             clients = F.update_client_dict(clients, trained_clients)
-
-            # INFO - Save client models
-            if b_save_model:
-                save_model(clients)
 
             end_time_global_iter = time.time()
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})
@@ -269,11 +274,5 @@ def run(client_setting: dict, training_setting: dict, experiment_name: str,
 
     end_run_time = time.time()
     summary_logger.info("Global Running time: {:.2f}".format(end_run_time - start_runtime))
-
-    # INFO - Save client's data
-    if b_save_data:
-        save_data(clients)
-        aggregator.save_data()
-
     summary_logger.info("Experiment finished.")
     stream_logger.info("Experiment finished.")

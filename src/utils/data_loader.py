@@ -1,4 +1,5 @@
 from .. import *
+from .logger import write_experiment_summary
 from torchvision.datasets import *
 from torchvision.transforms import *
 from torch.utils.tensorboard import SummaryWriter
@@ -47,6 +48,7 @@ class CustomDataLoader:
             with open(os.path.join(self.main_dir, 'seed.txt'), 'w') as f:
                 seed = random.randint(1, int(1e+4))
                 f.write(str(seed))
+        write_experiment_summary("Data sampling", {"Seed": seed})
 
         np.random.seed(seed)
         s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)

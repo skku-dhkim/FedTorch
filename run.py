@@ -95,7 +95,7 @@ if __name__ == '__main__':
         'local_lr': args.local_lr,
         'momentum': args.momentum,
         'local_epochs': args.local_iter,
-        'global_iter': args.global_iter,
+        'global_epochs': args.global_iter,
         'batch_size': args.batch,
         'use_gpu': args.gpu,
         'gpu_frac': args.gpu_frac,
@@ -118,8 +118,7 @@ if __name__ == '__main__':
         # INFO: Run Function
         # TODO: Make additional Federated method
         # FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        FedBalancer.run(client_settings, train_settings, experiment_name,
-                        b_save_model=args.save_model, b_save_data=args.save_data)
+        FedBalancer.run(client_settings, train_settings)
         # FedAD.run(client_settings, train_settings, experiment_name,
         #           b_save_model=args.save_model, b_save_data=args.save_data)
         # FedIndi.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)

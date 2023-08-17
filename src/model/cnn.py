@@ -25,7 +25,7 @@ class SimpleCNN(Module):
         features = torch.flatten(x, 1)
 
         for i, layer in enumerate(self.fc_list):
-            features = F.relu(layer(features))
+            features = F.relu(layer(features), inplace=True)
 
         logit = self.logit(features)
         return logit, features

@@ -47,7 +47,10 @@ def model_collection(clients: dict, aggregator: Aggregator, with_data_len: bool 
     aggregator.collected_weights = collected_weights
 
 
-def compute_accuracy(model: Module, data_loader: DataLoader, loss_fn: Optional[Module] = None) -> Union[float, tuple]:
+def compute_accuracy(model: Module,
+                     data_loader: DataLoader,
+                     loss_fn: Optional[Module] = None,
+                     **kwargs) -> Union[float, tuple]:
     """
     Compute the accuracy using its whole data.
 
@@ -59,14 +62,22 @@ def compute_accuracy(model: Module, data_loader: DataLoader, loss_fn: Optional[M
     Returns: ((float) accuracy, (float) loss)
 
     """
-    device = "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     model.to(device)
     model.eval()
 
+    global_model = None
+    if 'global_model' in kwargs:
+        global_model = kwargs['global_model']
+        global_model.to(device)
+        global_model.eval()
+
     correct = []
     loss_list = []
     total_len = []
+
+    i = 0
     with torch.no_grad():
         for x, y in data_loader:
             x = x.to(device)
@@ -74,8 +85,10 @@ def compute_accuracy(model: Module, data_loader: DataLoader, loss_fn: Optional[M
 
             if 'SimpleCNN' in str(model.__class__):
                 outputs, feature_map = model(x)
+                if global_model is not None:
+                    g_outputs, _ = global_model(x)
                 if loss_fn:
-                    loss = loss_fn(outputs, y, feature_map)
+                    loss = loss_fn(outputs, g_outputs, y, feature_map, i)
                     loss_list.append(loss.item())
             else:
                 outputs = model(x)
@@ -86,6 +99,7 @@ def compute_accuracy(model: Module, data_loader: DataLoader, loss_fn: Optional[M
             y_max_scores, y_max_idx = outputs.max(dim=1)
             correct.append((y == y_max_idx).sum().item())
             total_len.append(len(x))
+            i += 1
         acc = sum(correct) / sum(total_len)
 
         if loss_fn is not None:

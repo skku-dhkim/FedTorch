@@ -2,6 +2,7 @@ from src import *
 from src.clients import *
 from src.model import *
 from torch.nn import Module
+from src.utils.logger import write_experiment_summary
 
 
 class Aggregator:
@@ -32,12 +33,15 @@ class Aggregator:
 
         # NOTE: We will use same initial model for same experiment.
         if main_dir == root_dir:
+            write_experiment_summary("Aggregator", {"Model": "Make new"})
             pass
         elif os.path.isfile(os.path.join(main_dir, 'init_model.pt')):
             weights = torch.load(os.path.join(main_dir, 'init_model.pt'))
             self.model.load_state_dict(weights)
+            write_experiment_summary("Aggregator", {"Model": "Load from path"})
         else:
             torch.save(self.model.state_dict(), os.path.join(main_dir, 'init_model.pt'))
+            write_experiment_summary("Aggregator", {"Model": "Make new and save into init_model.pt"})
 
         # Log path
         self.summary_path = os.path.join(log_path, "{}".format(self.name))
