@@ -20,6 +20,11 @@ class SimpleCNN(Module):
 
         self.fc_list = [self.fc_1, self.fc_2]
 
+        if 'features' in kwargs:
+            self.output_feature_map = kwargs['features']
+        else:
+            self.output_feature_map = False
+
     def forward(self, x):
         x = self.features(x)
         features = torch.flatten(x, 1)
@@ -28,4 +33,8 @@ class SimpleCNN(Module):
             features = F.relu(layer(features), inplace=True)
 
         logit = self.logit(features)
-        return logit, features
+
+        if self.output_feature_map:
+            return logit, features
+        else:
+            return logit

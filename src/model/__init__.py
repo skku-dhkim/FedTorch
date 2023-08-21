@@ -27,7 +27,7 @@ def model_call(model_name: str, num_of_classes: int, **kwargs):
         _model.fc = fc
         return _model
     elif model_name.lower() == 'simple_cnn':
-        return SimpleCNN(num_classes=num_of_classes)
+        return SimpleCNN(num_classes=num_of_classes, **kwargs)
     else:
         raise NotImplementedError("Not implemented yet.")
 

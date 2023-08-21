@@ -12,6 +12,7 @@ from src.train import functions as F
 import ray
 import torch
 import csv
+import math
 
 __all__ = [
     'Dataset',
@@ -27,5 +28,6 @@ __all__ = [
     'model_call',
     'call_optimizer', 'F',
     'utils',
-    'csv'
+    'csv',
+    'math'
 ]
