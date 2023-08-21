@@ -83,16 +83,22 @@ def compute_accuracy(model: Module,
             x = x.to(device)
             y = y.to(device).to(torch.long)
 
-            if 'SimpleCNN' in str(model.__class__):
+            if hasattr(model, 'output_feature_map') and model.output_feature_map:
                 outputs, feature_map = model(x)
-                if global_model is not None:
-                    g_outputs, _ = global_model(x)
-                if loss_fn:
-                    loss = loss_fn(outputs, g_outputs, y, feature_map, i)
-                    loss_list.append(loss.item())
             else:
                 outputs = model(x)
-                if loss_fn:
+
+            if global_model is not None:
+                if hasattr(model, 'output_feature_map'):
+                    g_outputs, _ = global_model(x)
+                else:
+                    g_outputs = global_model(x)
+
+            if loss_fn is not None:
+                if 'FeatureBalanceLoss' in str(loss_fn.__class__):
+                    loss = loss_fn(outputs, g_outputs, y, feature_map, i)
+                    loss_list.append(loss.item())
+                else:
                     loss = loss_fn(outputs, y)
                     loss_list.append(loss.item())
 
@@ -355,7 +361,7 @@ def mark_hessian(model: Module, data_loader: DataLoader, summary_writer: Summary
     for x, y in data_loader:
         x = x.to(device)
         y = y.to(device).to(torch.long)
-        outputs = model(x)
+        outputs, _ = model(x)
         if loss_fn is not None:
             loss = loss_fn(outputs, y)
 

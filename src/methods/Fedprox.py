@@ -7,8 +7,7 @@ from .utils import *
 def train(
         client: Client,
         training_settings: dict,
-        num_of_classes: int,
-        early_stopping: bool = False):
+        num_of_classes: int):
     # TODO: Need to check is_available() is allowed.
     device = "cuda" if torch.cuda.is_available() is True else "cpu"
 
@@ -18,7 +17,7 @@ def train(
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
 
     # INFO - Call the model architecture and set parameters.
-    model = model_call(training_settings['model'], num_of_classes)
+    model = model_call(training_settings['model'], num_of_classes, features=False)
     model.load_state_dict(client.model)
     model = model.to(device)
 
@@ -35,12 +34,6 @@ def train(
     else:
         optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
                           lr=training_settings['local_lr'])
-
-    # if early_stopping:
-    #     # TODO: patience value may be the hyperparameter.
-    #     early_stop = EarlyStopping(patience=5, summary_path=client_info['summary_path'], delta=0)
-    # else:
-    #     early_stop = None
 
     loss_fn = torch.nn.CrossEntropyLoss().to(device)
 
@@ -81,7 +74,6 @@ def train(
             #
             #model.load_state_dict(new_state, strict=True)
             ###########################################################
-
 
             # INFO - Step summary
             training_loss += loss.item()
@@ -168,14 +160,6 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     aggregator.global_iter += 1
 
     aggregator.test_accuracy = aggregator.compute_accuracy()
-
-    # TODO: Adapt in a future.
-    # Calculate cos_similarity with previous representations
-    # aggregator.calc_rep_similarity()
-    #
-    # # Calculate cos_similarity of weights
-    # current_model = self.get_parameters()
-    # self.calc_cos_similarity(original_model, current_model)
     aggregator.summary_writer.add_scalar('global_test_acc', aggregator.test_accuracy, aggregator.global_iter)
 
     if model_save:
@@ -191,7 +175,9 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
     # INFO - Client initialization
     client = Client
-    clients, aggregator = client_initialize(client, fed_dataset, test_loader, valid_loader,
+    aggregator = Aggregator
+
+    clients, aggregator = client_initialize(client, aggregator, fed_dataset, test_loader, valid_loader,
                                             client_setting, training_setting)
 
     start_runtime = time.time()
@@ -199,8 +185,11 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     try:
         stream_logger.info("[3] Global step starts...")
 
-        pbar = tqdm(range(training_setting['global_iter']), desc="Global steps #",
+        pbar = tqdm(range(training_setting['global_epochs']), desc="Global steps #",
                     postfix={'global_acc': aggregator.test_accuracy})
+
+        initial_lr = training_setting['local_lr']
+        total_g_epochs = training_setting['global_epochs']
 
         for gr in pbar:
             start_time_global_iter = time.time()
@@ -215,6 +204,14 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             stream_logger.debug("[*] Local training process...")
             # INFO - Normal Local Training
             sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
+
+            # INFO - COS decay
+            training_setting['local_lr'] = 1/2*initial_lr*(1+math.cos(aggregator.global_iter*math.pi/total_g_epochs))
+            stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
+            summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
+                                                                                 total_g_epochs,
+                                                                                 training_setting['local_lr']))
+
             trained_clients = local_training(clients=sampled_clients,
                                              training_settings=training_setting,
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])

@@ -1,5 +1,4 @@
 import torch.nn
-import math
 
 from src.methods import *
 from .utils import *
@@ -69,7 +68,7 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
 
         client.epoch_counter += 1
         training_acc, training_losses = F.compute_accuracy(model, client.train_loader, loss_fn, global_model=model_g)
-        test_acc, test_losses = F.compute_accuracy(model, client.train_loader, loss_fn, global_model=model_g)
+        test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn, global_model=model_g)
 
         # INFO - Epoch summary
         summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
@@ -134,7 +133,7 @@ def aggregation_balancer(clients: List[FedBalancerClient],
             empty_model[name] = torch.mean(v, 0)
         else:
             # NOTE: FC layer and logit are aggregated with importance score.
-            importance_score = client_importance_score(empty_model[name], 'cos', previous_g_model[name])
+            importance_score = client_importance_score(empty_model[name], 'euclidean', previous_g_model[name])
             score = shape_convert(importance_score, name)
             empty_model[name] = torch.sum(score * v, dim=0)
 
