@@ -4,7 +4,7 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg, FedKL, FedConst, Fedprox,Scaffold,MOON # FedIndi,
+from src.methods import FedAvg, FedKL, FedConst, Fedprox, Scaffold, MOON, FedBalancer # FedIndi,
 
 import argparse
 import os
@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     # Logs settings
     parser.add_argument('--exp_name', type=str, required=True)
-    parser.add_argument('--summary_count', type=int, default=10)
+    parser.add_argument('--summary_count', type=int, default=50)
 
     # System settings
     parser.add_argument('--ray_core', type=int, default=1)
@@ -95,7 +95,7 @@ if __name__ == '__main__':
         'local_lr': args.local_lr,
         'momentum': args.momentum,
         'local_epochs': args.local_iter,
-        'global_iter': args.global_iter,
+        'global_epochs': args.global_iter,
         'batch_size': args.batch,
         'use_gpu': args.gpu,
         'gpu_frac': args.gpu_frac,
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         'weight_decay': 1e-5,
         'kl_temp': 2,
         'indicator_temp': 1,
-        'mu':args.mu,
+        'mu': args.mu,
     }
 
     write_experiment_summary("Client Setting", client_settings)
@@ -117,7 +117,10 @@ if __name__ == '__main__':
     try:
         # INFO: Run Function
         # TODO: Make additional Federated method
-        FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        # FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        FedBalancer.run(client_settings, train_settings)
+        # FedAD.run(client_settings, train_settings, experiment_name,
+        #           b_save_model=args.save_model, b_save_data=args.save_data)
         # FedIndi.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
         # FedAvg.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
         # Fedprox.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)

@@ -1,10 +1,11 @@
-import copy
-
 from .. import *
+from .logger import write_experiment_summary
 from torchvision.datasets import *
 from torchvision.transforms import *
 from torch.utils.tensorboard import SummaryWriter
+from collections import Counter
 
+import copy
 import seaborn as sns
 
 
@@ -21,9 +22,9 @@ class CustomDataLoader:
         self.num_of_categories = len(train_data.classes)
         self.categories_train_X, self.categories_train_Y = None, None
 
+        self.main_dir = Path(log_path).parent.absolute()
         self.log_path = os.path.join(log_path, "client_meta")
         os.makedirs(self.log_path, exist_ok=True)
-
         self.transform = transform
 
     def _data_sampling(self, dirichlet_alpha: float, num_of_clients: int, num_of_classes: int) -> pd.DataFrame:
@@ -36,8 +37,20 @@ class CustomDataLoader:
             DataFrame: Client data distribution for iid-ness.
         """
         # Get dirichlet distribution
-        # Set a random seed for fixed data distribution
-        np.random.seed(2023)
+        # NOTE: If doesn't have sub-directory, manual seed is used.
+        if self.main_dir == Path("./logs").absolute():
+            seed = 2023
+        elif os.path.isfile(os.path.join(self.main_dir, 'seed.txt')):
+            with open(os.path.join(self.main_dir, 'seed.txt'), 'r') as f:
+                seed = f.read().strip()
+                seed = int(seed)
+        else:
+            with open(os.path.join(self.main_dir, 'seed.txt'), 'w') as f:
+                seed = random.randint(1, int(1e+4))
+                f.write(str(seed))
+        write_experiment_summary("Data sampling", {"Seed": seed})
+
+        np.random.seed(seed)
         s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
         c_dist = pd.DataFrame(s)
 
@@ -135,12 +148,16 @@ class CustomDataLoader:
             valid_x = client['train']['x'][-indices:]
             valid_y = client['train']['y'][-indices:]
 
-            client['train'] = DatasetWrapper({'x': train_x, 'y': train_y}, transform=self.transform)
+            client['train'] = DatasetWrapper({'x': train_x, 'y': train_y},
+                                             transform=self.transform,
+                                             number_of_categories=self.num_of_categories)
             for idx in range(len(valid_x)):
                 self.valid_set['x'].append(valid_x[idx])
                 self.valid_set['y'].append(valid_y[idx])
 
-            client['test'] = DatasetWrapper({'x': valid_x, 'y': valid_y}, transform=self.transform)
+            client['test'] = DatasetWrapper({'x': valid_x, 'y': valid_y},
+                                            transform=self.transform,
+                                            number_of_categories=self.num_of_categories)
         return clients
 
     def load(self, number_of_clients: int, dirichlet_alpha: float) -> tuple:
@@ -233,10 +250,12 @@ class FedCifar(CustomDataLoader):
 
 
 class DatasetWrapper(Dataset):
-    def __init__(self, data, transform=None):
+    def __init__(self, data, transform=None, number_of_categories=10):
         self.data_x = data['x']
         self.data_y = data['y']
         self.transform = transform
+        self.num_per_class = [0] * number_of_categories
+        self.class_list()
 
     def __len__(self) -> int:
         return len(self.data_x)
@@ -247,3 +266,8 @@ class DatasetWrapper(Dataset):
             copied_x = copy.deepcopy(x)
             x = self.transform(copied_x)
         return x, y
+
+    def class_list(self):
+        _class_count = Counter(self.data_y)
+        for k, v in _class_count.items():
+            self.num_per_class[int(k)] = v

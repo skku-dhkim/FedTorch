@@ -41,7 +41,7 @@ class CustomCNN(Module):
                 MaxPool2d((2, 2))
             )
             self.fc = Sequential(
-                Linear(16*5*5, 120),
+                Linear(16 * 5 * 5, 120),
                 ReLU(),
                 Linear(120, 84),
                 ReLU(),
@@ -123,13 +123,13 @@ class MixedModel(Module):
             self.features.append(_fb)
 
         self.fc = Sequential(
-            Linear(16*5*5*len(models), 120*len(models)),
+            Linear(16 * 5 * 5 * len(models), 120 * len(models)),
             ReLU(),
-            Linear(120*len(models), 84*len(models)),
+            Linear(120 * len(models), 84 * len(models)),
             ReLU(),
-            Linear(84*len(models), 10*len(models)),
+            Linear(84 * len(models), 10 * len(models)),
             ReLU(),
-            Linear(10*len(models), 10)
+            Linear(10 * len(models), 10)
         )
 
     def freeze_feature_layer(self):
@@ -154,7 +154,7 @@ class ModelFedCon(Module):
         classifier part return, source, label , representation
     """
 
-    def __init__(self,  out_dim, n_classes, net_configs=None):
+    def __init__(self, out_dim, n_classes, net_configs=None):
         super(ModelFedCon, self).__init__()
 
         self.features = SimpleCNN_header(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=n_classes)
@@ -168,7 +168,7 @@ class ModelFedCon(Module):
 
     def forward(self, x):
         h = self.features(x)
-        h = h.squeeze()         # representation tensor
+        h = h.squeeze()  # representation tensor
         x = self.l1(h)
         x = F.relu(x)
         x = self.l2(x)
@@ -198,3 +198,37 @@ class SimpleCNN_header(Module):
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         return x
+
+
+# class SimpleCNN(Module):
+#     def __init__(self, num_classes: int = 10, **kwargs):
+#         super(SimpleCNN, self).__init__()
+#
+#         self.features = Sequential(
+#             Conv2d(3, 6, (5, 5)),
+#             ReLU(),
+#             MaxPool2d((2, 2)),
+#             Conv2d(6, 16, (5, 5)),
+#             ReLU(),
+#             MaxPool2d((2, 2))
+#         )
+#         self.fc_1 = Linear(16 * 5 * 5, 120)
+#         self.fc_2 = Linear(120, 84)
+#         self.logit = Linear(84, num_classes)
+#
+#         self.fc_list = [self.fc_1, self.fc_2]
+#
+#         if 'threshold' in kwargs:
+#             self.threshold = kwargs['threshold']
+#         else:
+#             self.threshold = 0
+#
+#     def forward(self, x):
+#         x = self.features(x)
+#         features = torch.flatten(x, 1)
+#
+#         for i, layer in enumerate(self.fc_list):
+#             features = F.relu(layer(features))
+#
+#         logit = self.logit(features)
+#         return logit, features
