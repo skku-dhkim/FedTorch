@@ -89,10 +89,7 @@ def compute_accuracy(model: Module,
                 outputs = model(x)
 
             if global_model is not None:
-                if hasattr(model, 'output_feature_map'):
-                    g_outputs, _ = global_model(x)
-                else:
-                    g_outputs = global_model(x)
+                g_outputs = global_model(x)
 
             if loss_fn is not None:
                 if 'FeatureBalanceLoss' in str(loss_fn.__class__):

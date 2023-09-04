@@ -1,3 +1,5 @@
+import torch
+
 from src import *
 from src.clients import *
 from src.model import *
@@ -26,6 +28,7 @@ class Aggregator:
         self.lr = train_settings['global_lr']
 
         # Model
+        self.num_of_classes = NUMBER_OF_CLASSES[dataset_name]
         self.model: Module = model_call(train_settings['model'], NUMBER_OF_CLASSES[dataset_name])
 
         main_dir = Path(log_path).parent.absolute()
@@ -128,22 +131,36 @@ class AggregationBalancer(Aggregator):
                  **kwargs):
 
         super().__init__(test_data, valid_data, dataset_name, log_path, train_settings, **kwargs)
+        self.test_accuracy, _ = self.compute_accuracy()
 
-    def compute_accuracy(self) -> float:
+    def compute_accuracy(self):
         """
         Returns:
             (float) training_acc: Training accuracy of client's test data.
         """
         correct = []
         total = []
+        label_count = torch.Tensor(torch.zeros(self.num_of_classes))
+        total_label = torch.Tensor(torch.zeros(self.num_of_classes))
         self.model.eval()
         with torch.no_grad():
             for x, y in self.test_loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
-                outputs, _ = self.model(x)
+                outputs = self.model(x)
                 y_max_scores, y_max_idx = outputs.max(dim=1)
                 correct.append((y == y_max_idx).sum().item())
+                indices = self.__accuracy_per_class(y, y_max_idx)
+                label_count[indices] += 1
+                total_label[y] += 1
                 total.append(len(x))
             training_acc = sum(correct) / sum(total)
-        return training_acc
+            accuracy_per_label = label_count / total_label
+            # print(accuracy_per_label)
+            # print(total_label)
+        return training_acc, accuracy_per_label
+
+    def __accuracy_per_class(self, y, hat_y):
+        true_indices = (y == hat_y).nonzero(as_tuple=False).squeeze()
+        correct_index = y[true_indices]
+        return correct_index

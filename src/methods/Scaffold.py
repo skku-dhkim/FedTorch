@@ -1,7 +1,8 @@
 from . import *
 from src.model import NUMBER_OF_CLASSES
 from .utils import *
-
+from .FedBalancer import aggregation_balancer
+from src.clients import FedBalancerClient, AggregationBalancer
 
 @ray.remote(max_calls=1)
 def train(
@@ -64,7 +65,7 @@ def train(
 
             optim.zero_grad()
 
-            outputs, _ = model(inputs)
+            outputs = model(inputs)
             loss = loss_fn(outputs, labels)
 
 
@@ -218,6 +219,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     # INFO - Client initialization
     client = Client
     aggregator = Aggregator
+    # aggregator = AggregationBalancer
 
     clients, aggregator = client_initialize(client, aggregator, fed_dataset, test_loader, valid_loader,
                                             client_setting, training_setting)
@@ -247,19 +249,21 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             # INFO - Normal Local Training
             sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
 
-            # INFO - COS decay
-            training_setting['local_lr'] = 1 / 2 * initial_lr * (
-                        1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
-            stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
-            summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
-                                                                                 total_g_epochs,
-                                                                                 training_setting['local_lr']))
+            # # INFO - COS decay
+            # training_setting['local_lr'] = 1 / 2 * initial_lr * (
+            #             1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
+            # stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
+            # summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
+            #                                                                      total_g_epochs,
+            #                                                                      training_setting['local_lr']))
 
             trained_clients = local_training(clients=sampled_clients,
                                              training_settings=training_setting,
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
             stream_logger.debug("[*] Federated aggregation scheme...")
             fed_avg(trained_clients, aggregator, training_setting['global_lr'])
+            # aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'])
+
             clients = F.update_client_dict(clients, trained_clients)
 
             # INFO - Save client models
@@ -272,11 +276,11 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
                                                                          end_time_global_iter - start_time_global_iter))
             summary_logger.info("Test Accuracy: {}".format(aggregator.test_accuracy))
 
-            if gr % 10 == 0:
-                F.mark_weight_distribution(trained_clients,aggregator.get_parameters(),aggregator.summary_writer,gr)
-            if gr == training_setting['global_iter']-1:
-                #global_info
-                F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer,gr)
+            # if gr % 10 == 0:
+            #     F.mark_weight_distribution(trained_clients,aggregator.get_parameters(),aggregator.summary_writer,gr)
+            # if gr == training_setting['global_epochs']-1:
+            #     #global_info
+            #     F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer,gr)
 
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
