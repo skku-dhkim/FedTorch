@@ -107,18 +107,24 @@ class Bottleneck(nn.Module):
         return out
 
 
-class ResNetCifar10(nn.Module):
+class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None):
-        super(ResNetCifar10, self).__init__()
+                 norm_layer=None, **kwargs):
+        super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
 
         self.inplanes = 64
         self.dilation = 1
+
+        if 'features' in kwargs:
+            self.output_feature_map = kwargs['features']
+        else:
+            self.output_feature_map = False
+
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
@@ -140,7 +146,7 @@ class ResNetCifar10(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.classifier = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -195,10 +201,13 @@ class ResNetCifar10(nn.Module):
         x = self.layer4(x)
 
         x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.fc(x)
+        features = torch.flatten(x, 1)
+        logit = self.classifier(features)
 
-        return x
+        if self.output_feature_map:
+            return logit, features
+        else:
+            return logit
 
     def forward(self, x):
         return self._forward_impl(x)
@@ -216,7 +225,7 @@ class ResNetCifar10(nn.Module):
         return x
 
 
-def ResNet18_cifar10(**kwargs):
+def ResNet18(**kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -224,10 +233,10 @@ def ResNet18_cifar10(**kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return ResNetCifar10(BasicBlock, [2, 2, 2, 2], **kwargs)
+    return ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
 
 
-def ResNet50_cifar10(**kwargs):
+def ResNet50(**kwargs):
     r"""ResNet-50 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -235,4 +244,4 @@ def ResNet50_cifar10(**kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return ResNetCifar10(Bottleneck, [3, 4, 6, 3], **kwargs)
+    return ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
