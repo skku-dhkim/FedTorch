@@ -22,19 +22,19 @@ exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 method="FedProx"
-exp_name="Baseline1/${method}_${balancer}"
+exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 method="Scaffold"
-exp_name="Baseline1/${method}_${balancer}"
+exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 method="FedNova"
-exp_name="Baseline1/${method}_${balancer}"
+exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 method="FedBal"
-exp_name="Baseline1/${method}_${balancer}"
+exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 
@@ -45,17 +45,17 @@ exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 method="FedProx"
-exp_name="Baseline1/${method}_${balancer}"
+exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 method="Scaffold"
-exp_name="Baseline1/${method}_${balancer}"
+exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 method="FedNova"
-exp_name="Baseline1/${method}_${balancer}"
+exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
 
 method="FedBal"
-exp_name="Baseline1/${method}_${balancer}"
+exp_name="$1/${method}_${balancer}"
 python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name

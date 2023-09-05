@@ -120,7 +120,7 @@ if __name__ == '__main__':
         client_settings['client'] = True
         client_settings['aggregator'] = True
 
-    train_settings['lr_decay'] = 'cos'
+    # train_settings['lr_decay'] = 'cos'
 
     write_experiment_summary("Client Setting", client_settings)
     write_experiment_summary("Training Hyper-parameters", train_settings)
