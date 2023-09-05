@@ -15,13 +15,21 @@ if __name__ == '__main__':
     # Argument Parser
     parser = argparse.ArgumentParser(description="Federated Learning on Pytorch")
 
+    # INFO: Required Parameters
+    # Data settings
+    parser.add_argument('--n_clients', type=int, required=True)
+    parser.add_argument('--dirichlet_alpha', type=float, required=True)
+
+    # Training Settings
+    parser.add_argument('--method', type=str, required=True)
+    parser.add_argument('--exp_name', type=str, required=True)
+
+    # INFO: Optional Settings
     # GPU settings
     parser.add_argument('--gpu', type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument('--gpu_frac', type=float, default=1.0)
 
     # Data settings
-    parser.add_argument('--n_clients', type=int, required=True)
-    parser.add_argument('--dirichlet_alpha', type=float, default=0.5)
     parser.add_argument('--dataset', type=str, default='Cifar-10')
     parser.add_argument('--save_data', type=lambda x: bool(strtobool(x)), default=False)
 
@@ -33,17 +41,18 @@ if __name__ == '__main__':
     parser.add_argument('--opt', type=str, default='SGD')
     parser.add_argument('--batch', type=int, default=32)
     parser.add_argument('--local_iter', type=int, default=5)
-    parser.add_argument('--global_iter', type=int, default=50)
+    parser.add_argument('--global_iter', type=int, default=100)
     parser.add_argument('--local_lr', type=float, default=0.01)
     parser.add_argument('--global_lr', type=float, default=1.0)
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--sample_ratio', type=float, default=1.0)
     parser.add_argument('--T', type=float, default=1.0)
     parser.add_argument('--mu', type=float, default=0.01)
+    parser.add_argument('--balancer', type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument('--weight_decay', type=float, default=1e-5)
     #parser.add_argument('--var_client', type=list, default=[])
 
     # Logs settings
-    parser.add_argument('--exp_name', type=str, required=True)
     parser.add_argument('--summary_count', type=int, default=50)
 
     # System settings
@@ -89,6 +98,7 @@ if __name__ == '__main__':
 
     # INFO: Training settings
     train_settings = {
+        'scheme': args.method,
         'model': args.model,
         'optim': args.opt,
         'global_lr': args.global_lr,
@@ -101,13 +111,16 @@ if __name__ == '__main__':
         'gpu_frac': args.gpu_frac,
         'summary_count': args.summary_count,
         'sample_ratio': args.sample_ratio,
-        # 'temperature': args.T,
-        'weight_decay': 1e-5,
-        # 'weight_decay': 0,
-        # 'kl_temp': 2,
-        # 'indicator_temp': 1,
+        'T': args.T,
+        'weight_decay': args.weight_decay,
         'mu': args.mu,
     }
+
+    if args.balancer is True:
+        client_settings['client'] = True
+        client_settings['aggregator'] = True
+
+    train_settings['lr_decay'] = 'cos'
 
     write_experiment_summary("Client Setting", client_settings)
     write_experiment_summary("Training Hyper-parameters", train_settings)
@@ -118,19 +131,31 @@ if __name__ == '__main__':
     try:
         # INFO: Run Function
         # TODO: Make additional Federated method
+        if 'fedavg' in args.method.lower():
+            FedAvg.run(client_settings, train_settings)
+        elif 'fedbal' in args.method.lower():
+            FedBalancer.run(client_settings, train_settings)
+        elif 'fedprox' in args.method.lower():
+            Fedprox.run(client_settings, train_settings)
+        elif 'scaffold' in args.method.lower():
+            Scaffold.run(client_settings, train_settings)
+        elif 'fednova' in args.method.lower():
+            FedNova.run(client_settings, train_settings)
+        elif 'moon' in args.method.lower():
+            MOON.run(client_settings, train_settings)
+        else:
+            raise NotImplementedError("\'{}\' is not implemented method.".format(args.method))
+
         # FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedBalancer.run(client_settings, train_settings)
         # FedAD.run(client_settings, train_settings, experiment_name,
         #           b_save_model=args.save_model, b_save_data=args.save_data)
         # FedIndi.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedAvg.run(client_settings, train_settings)
-        # Fedprox.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
         # FedConst.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        Scaffold.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # MOON.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedNova.run(client_settings, train_settings)
         # FedRS.run(client_settings, train_settings)
 
     except Exception as e:
         system_logger.error(traceback.format_exc())
         raise Exception(traceback.format_exc())
+    except KeyboardInterrupt:
+        print("Terminating process...")
+        raise SystemExit()

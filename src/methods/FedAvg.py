@@ -23,11 +23,9 @@ def train(
     model.load_state_dict(client.model)
     model = model.to(device)
 
-    # model_g = model_call(training_settings['model'], num_of_classes)
-    # model_g.load_state_dict(client.model)
-    # model_g = model_g.to(device)
-
-    # original_state = F.get_parameters(model)
+    model_g = model_call(training_settings['model'], num_of_classes)
+    model_g.load_state_dict(client.model)
+    model_g = model_g.to(device)
 
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
@@ -64,47 +62,33 @@ def train(
             loss.backward()
             optim.step()
 
-            # current_state = F.get_parameters(model)
-
             # INFO - Step summary
             training_loss += loss.item()
 
             client.step_counter += 1
             summary_counter += 1
 
-            # if summary_counter % training_settings["summary_count"] == 0:
-            #     training_acc, _ = F.compute_accuracy(model, client.train_loader, loss_fn)
-            #     summary_writer.add_scalar('step_loss', training_loss / summary_counter, client.step_counter)
-            #     summary_writer.add_scalar('step_acc', training_acc, client.step_counter)
-            #     summary_counter = 0
-            #     training_loss = 0
+        # INFO - CoS similarity of evaluation.
+        cos_similarity = torch.nn.CosineSimilarity(dim=-1)
+
+        model_state = model.state_dict()
+        model_g_state = model_g.state_dict()
+
+        for key, value in model_state.items():
+            flatten_model = value.view(-1)
+            flatten_g_model = model_g_state[key].view(-1)
+            similarity = cos_similarity(flatten_model, flatten_g_model)
+            summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
         # INFO - Epoch summary
         test_acc, test_loss = F.compute_accuracy(model, client.test_loader, loss_fn)
         train_acc, train_loss = F.compute_accuracy(model, client.train_loader, loss_fn)
 
-        # summary_writer.add_scalar('epoch_loss/train', train_loss, client.epoch_counter)
-        # summary_writer.add_scalar('epoch_loss/test', test_loss, client.epoch_counter)
-        #
         summary_writer.add_scalar('epoch_acc/local_train', train_acc, client.epoch_counter)
         summary_writer.add_scalar('epoch_acc/local_test', test_acc, client.epoch_counter)
 
-        # F.mark_accuracy(client, model, summary_writer)
-        # F.mark_entropy(client, model, summary_writer)
-
-        # F.mark_cosine_similarity(current_state, original_state, summary_writer, client.epoch_counter)
-        # F.mark_norm_size(current_state, summary_writer, client.epoch_counter)
-
-        # summary_writer.add_scalar('train/local_acc', training_acc, client.epoch_counter)
         summary_writer.add_scalar('loss/train', train_loss, client.epoch_counter)
-        # summary_writer.add_scalar('test/local_acc', test_acc, client.epoch_counter)
         summary_writer.add_scalar('loss/test', test_loss, client.epoch_counter)
-
-        # F.mark_accuracy(model_l=model, model_g=model_g, dataloader=client.train_loader, summary_writer=summary_writer,
-        #                 tag='epoch_metric/train_data', epoch=client.epoch_counter)
-        #
-        # F.mark_accuracy(model_l=model, model_g=model_g, dataloader=client.test_loader, summary_writer=summary_writer,
-        #                 tag='epoch_metric/test_data', epoch=client.epoch_counter)
 
         client.epoch_counter += 1
 
@@ -161,14 +145,6 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     aggregator.global_iter += 1
 
     aggregator.test_accuracy = aggregator.compute_accuracy()
-
-    # TODO: Adapt in a future.
-    # Calculate cos_similarity with previous representations
-    # aggregator.calc_rep_similarity()
-    #
-    # # Calculate cos_similarity of weights
-    # current_model = self.get_parameters()
-    # self.calc_cos_similarity(original_model, current_model)
     aggregator.summary_writer.add_scalar('global_test_acc', aggregator.test_accuracy, aggregator.global_iter)
 
     if model_save:
@@ -181,12 +157,19 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
     # INFO - Dataset creation
     fed_dataset, valid_loader, test_loader = data_preprocessing(client_setting)
-    # INFO - Client initialization
-    client = Client
-    # aggregator_obj = Aggregator
-    aggregator_obj = AggregationBalancer
 
-    clients, aggregator = client_initialize(client, aggregator_obj,
+    # INFO - Client initialization
+    # if 'client' in client_setting.keys() and client_setting['client'] is True:
+    #     client = FedBalancerClient
+    # else:
+    client = Client
+
+    if 'aggregator' in client_setting.keys() and client_setting['aggregator'] is True:
+        aggregator: type(AggregationBalancer) = AggregationBalancer
+    else:
+        aggregator = Aggregator
+
+    clients, aggregator = client_initialize(client, aggregator,
                                             fed_dataset, test_loader, valid_loader,
                                             client_setting,
                                             training_setting)
@@ -199,8 +182,11 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
         pbar = tqdm(range(training_setting['global_epochs']), desc="Global steps #",
                     postfix={'global_acc': aggregator.test_accuracy})
 
-        # initial_lr = training_setting['local_lr']
-        # total_g_epochs = training_setting['global_epochs']
+        lr_decay = False
+        if 'lr_decay' in training_setting.keys():
+            initial_lr = training_setting['local_lr']
+            total_g_epochs = training_setting['global_epochs']
+            lr_decay = True
 
         for gr in pbar:
             start_time_global_iter = time.time()
@@ -212,23 +198,38 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             stream_logger.debug("[*] Client downloads the model from aggregator...")
             F.model_download(aggregator=aggregator, clients=clients)
 
-            # # INFO - COS decay
-            # training_setting['local_lr'] = 1/2*initial_lr*(1+math.cos(aggregator.global_iter*math.pi/total_g_epochs))
-            # stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
-            # summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
-            #                                                                      total_g_epochs,
-            #                                                                      training_setting['local_lr']))
+            # INFO - Client sampling
+            stream_logger.debug("[*] Client sampling...")
+            sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
+
+            # INFO - Learning rate decay
+            if lr_decay:
+                if 'cos' in training_setting['lr_decay'].lower():
+                    # INFO - COS decay
+                    training_setting['local_lr'] = 1 / 2 * initial_lr * (
+                                1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
+                    stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
+                    summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
+                                                                                         total_g_epochs,
+                                                                                         training_setting['local_lr']))
+                else:
+                    raise NotImplementedError("Learning rate decay \'{}\' is not implemented yet.".format(
+                        training_setting['lr_decay']))
 
             stream_logger.debug("[*] Local training process...")
-            # INFO - Normal Local Training
-            sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
             trained_clients = local_training(clients=sampled_clients,
                                              training_settings=training_setting,
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
-            stream_logger.debug("[*] Federated aggregation scheme...")
-            # fed_avg(trained_clients, aggregator, training_setting['global_lr'])
-            aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'])
 
+            stream_logger.debug("[*] Federated aggregation scheme...")
+            if 'aggregator' in client_setting.keys() and client_setting['aggregator'] is True:
+                stream_logger.debug("[*] Aggregation Balancer")
+                aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'], training_setting['T'])
+            else:
+                stream_logger.debug("[*] FedAvg")
+                fed_avg(trained_clients, aggregator, training_setting['global_lr'])
+
+            stream_logger.debug("[*] Weight Updates")
             clients = F.update_client_dict(clients, trained_clients)
 
             # INFO - Save client models
@@ -240,12 +241,6 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             summary_logger.info("Global Running time: {}::{:.2f}".format(gr,
                                                                          end_time_global_iter - start_time_global_iter))
             summary_logger.info("Test Accuracy: {}".format(aggregator.test_accuracy))
-
-            # if gr % 10 == 0:
-            #     F.mark_weight_distribution(trained_clients,aggregator.get_parameters(),aggregator.summary_writer,gr)
-            # if gr == training_setting['global_iter']-1:
-                #global_info
-                # F.mark_hessian(aggregator.model, aggregator.test_loader, aggregator.summary_writer,gr)
 
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:

@@ -293,9 +293,15 @@ def run(client_setting: dict, training_setting: dict):
     fed_dataset, valid_loader, test_loader = data_preprocessing(client_setting)
 
     # INFO - Client initialization
+    # if 'client' in client_setting.keys() and client_setting['client'] is True:
+    #     client = FedBalancerClient
+    # else:
     client = Client
-    aggregator = Aggregator
-    # aggregator = AggregationBalancer
+
+    if 'aggregator' in client_setting.keys() and client_setting['aggregator'] is True:
+        aggregator: type(AggregationBalancer) = AggregationBalancer
+    else:
+        aggregator = Aggregator
 
     clients, aggregator = client_initialize(client, aggregator, fed_dataset, test_loader, valid_loader,
                                             client_setting, training_setting)
@@ -307,8 +313,11 @@ def run(client_setting: dict, training_setting: dict):
         pbar = tqdm(range(training_setting['global_epochs']), desc="Global steps #",
                     postfix={'global_acc': aggregator.test_accuracy})
 
-        initial_lr = training_setting['local_lr']
-        total_g_epochs = training_setting['global_epochs']
+        lr_decay = False
+        if 'lr_decay' in training_setting.keys():
+            initial_lr = training_setting['local_lr']
+            total_g_epochs = training_setting['global_epochs']
+            lr_decay = True
 
         for gr in pbar:
             start_time_global_iter = time.time()
@@ -324,12 +333,20 @@ def run(client_setting: dict, training_setting: dict):
             # INFO - Client sampling
             sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
 
-            # # INFO - COS decay
-            # training_setting['local_lr'] = 1/2*initial_lr*(1+math.cos(aggregator.global_iter*math.pi/total_g_epochs))
-            # stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
-            # summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
-            #                                                                      total_g_epochs,
-            #                                                                      training_setting['local_lr']))
+            # INFO - Learning rate decay
+            if lr_decay:
+                if 'cos' in training_setting['lr_decay'].lower():
+                    # INFO - COS decay
+                    training_setting['local_lr'] = 1 / 2 * initial_lr * (
+                                1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
+                    stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
+                    summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
+                                                                                         total_g_epochs,
+                                                                                         training_setting['local_lr']))
+                else:
+                    raise NotImplementedError("Learning rate decay \'{}\' is not implemented yet.".format(
+                        training_setting['lr_decay']))
+
             # INFO - Local Training
             stream_logger.debug("[*] Local training process...")
             trained_clients = local_training(clients=sampled_clients,
@@ -337,8 +354,14 @@ def run(client_setting: dict, training_setting: dict):
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
 
             stream_logger.debug("[*] Federated aggregation scheme...")
-            fed_avg(trained_clients, aggregator, training_setting['global_lr'])
-            # aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'])
+            if 'aggregator' in client_setting.keys() and client_setting['aggregator'] is True:
+                stream_logger.debug("[*] Aggregation Balancer")
+                aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'], training_setting['T'])
+            else:
+                stream_logger.debug("[*] FedAvg")
+                fed_avg(trained_clients, aggregator, training_setting['global_lr'])
+
+            stream_logger.debug("[*] Weight Updates")
 
             clients = F.update_client_dict(clients, trained_clients)
 
