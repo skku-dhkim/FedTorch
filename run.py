@@ -62,7 +62,9 @@ if __name__ == '__main__':
 
     # INFO: Log settings
     experiment_name = args.exp_name
-    log_path = os.path.join("./logs", "{}_{}".format(datetime.today().date(), experiment_name))
+    # log_path = os.path.join("./logs", "{}_{}".format(datetime.today().date(), experiment_name))
+    log_path = os.path.join("./logs", "{}".format(experiment_name))
+
     os.makedirs(log_path, exist_ok=True)
     LOGGER_DICT['path'] = log_path
 
