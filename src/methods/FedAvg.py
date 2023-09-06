@@ -2,7 +2,7 @@ from . import *
 from src.model import NUMBER_OF_CLASSES
 from .utils import *
 from .FedBalancer import aggregation_balancer
-from src.clients import FedBalancerClient, AggregationBalancer
+from src.clients import AggregationBalancer
 
 
 @ray.remote(max_calls=1)
@@ -159,9 +159,6 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     fed_dataset, valid_loader, test_loader = data_preprocessing(client_setting)
 
     # INFO - Client initialization
-    # if 'client' in client_setting.keys() and client_setting['client'] is True:
-    #     client = FedBalancerClient
-    # else:
     client = Client
 
     if training_setting['balancer'] is True:
@@ -207,7 +204,8 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
                 if 'cos' in training_setting['lr_decay'].lower():
                     # INFO - COS decay
                     training_setting['local_lr'] = 1 / 2 * initial_lr * (
-                            1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
+                                1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
+                    training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
                     stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
                     summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
                                                                                          total_g_epochs,

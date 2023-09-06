@@ -209,6 +209,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
                     # INFO - COS decay
                     training_setting['local_lr'] = 1 / 2 * initial_lr * (
                                 1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
+                    training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
                     stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
                     summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
                                                                                          total_g_epochs,

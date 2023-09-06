@@ -16,7 +16,7 @@ dirichlet_alpha=0.1
 model="simple_cnn"
 dataset="Cifar-10"
 local_iter=5
-global_iter=2
+global_iter=50
 
 balancer=True
 

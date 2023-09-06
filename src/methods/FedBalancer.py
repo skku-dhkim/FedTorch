@@ -80,13 +80,13 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
             similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
             summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
-    # INFO - Epoch summary
-    summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
-    summary_writer.add_scalar('loss/train', training_losses, client.epoch_counter)
-    summary_writer.add_scalar('acc/test', test_acc, client.epoch_counter)
-    summary_writer.add_scalar('loss/test', test_losses, client.epoch_counter)
+        # INFO - Epoch summary
+        summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
+        summary_writer.add_scalar('loss/train', training_losses, client.epoch_counter)
+        summary_writer.add_scalar('acc/test', test_acc, client.epoch_counter)
+        summary_writer.add_scalar('loss/test', test_losses, client.epoch_counter)
 
-    csv_writer.writerow([training_acc, training_losses, test_acc, test_losses])
+        csv_writer.writerow([training_acc, training_losses, test_acc, test_losses])
 
     # INFO - Local model update
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
@@ -126,6 +126,7 @@ def local_training(clients: list,
 def aggregation_balancer(clients: List[FedBalancerClient],
                          aggregator: Union[Aggregator, AggregationBalancer],
                          global_lr: float = 1.0, temperature: float = 1.0):
+
     csvfile = open(os.path.join(aggregator.summary_path, "experiment_result.csv"), "a", newline='')
     csv_writer = csv.writer(csvfile)
 
@@ -141,6 +142,7 @@ def aggregation_balancer(clients: List[FedBalancerClient],
     importance_score = None
     for name, v in empty_model.items():
         if 'classifier' in name and 'weight' in name:
+            # NOTE: FC layer for calculate importance.
             importance_score = client_importance_score(empty_model[name],
                                                        'cos',
                                                        previous_g_model[name],
@@ -151,6 +153,7 @@ def aggregation_balancer(clients: List[FedBalancerClient],
             score = shape_convert(importance_score, name)
             empty_model[name] = torch.sum(score * v, dim=0) * global_lr
         else:
+            # NOTE: Averaging the Feature extractor and others.
             empty_model[name] = torch.mean(v, 0) * global_lr
 
         # if 'features' in name:
@@ -229,7 +232,7 @@ def client_importance_score(vector, method, global_model, normalize: bool = True
 
     if normalize:
         T = temperature
-        score_vector = torch.softmax(score_vector / T, dim=0)
+        score_vector = torch.softmax(score_vector/T, dim=0)
     return score_vector
 
 
@@ -320,8 +323,9 @@ def run(client_setting: dict, training_setting: dict):
             if lr_decay:
                 if 'cos' in training_setting['lr_decay'].lower():
                     # INFO - COS decay
-                    training_setting['local_lr'] = 1 / 2 * initial_lr * (
-                                1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
+                    training_setting['local_lr'] = 1/2*initial_lr*(1+math.cos(aggregator.global_iter*math.pi/total_g_epochs))
+                    training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
+
                     stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
                     summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
                                                                                          total_g_epochs,
