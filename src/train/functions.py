@@ -93,7 +93,7 @@ def compute_accuracy(model: Module,
 
             if loss_fn is not None:
                 if 'FeatureBalanceLoss' in str(loss_fn.__class__):
-                    loss = loss_fn(outputs, g_outputs, y, feature_map, i)
+                    loss = loss_fn(outputs, y, feature_map, i, device)
                     loss_list.append(loss.item())
                 else:
                     loss = loss_fn(outputs, y)

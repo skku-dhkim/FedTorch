@@ -161,9 +161,6 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     fed_dataset, valid_loader, test_loader = data_preprocessing(client_setting)
 
     # INFO - Client initialization
-    # if 'client' in client_setting.keys() and client_setting['client'] is True:
-    #     client = FedBalancerClient
-    # else:
     client = Client
 
     if training_setting['balancer'] is True:
@@ -179,7 +176,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     start_runtime = time.time()
     # INFO - Training Global Steps
     try:
-        stream_logger.info("[3] Global step starts...")
+        stream_logger.info("[4] Global step starts...")
 
         pbar = tqdm(range(training_setting['global_epochs']), desc="Global steps #",
                     postfix={'global_acc': aggregator.test_accuracy})

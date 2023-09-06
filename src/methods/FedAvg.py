@@ -77,7 +77,7 @@ def train(
         for key, value in model_state.items():
             flatten_model = value.view(-1)
             flatten_g_model = model_g_state[key].view(-1)
-            similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
+            similarity = cos_similarity(flatten_model, flatten_g_model)
             summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
         # INFO - Epoch summary
@@ -177,7 +177,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     start_runtime = time.time()
     # INFO - Training Global Steps
     try:
-        stream_logger.info("[3] Global step starts...")
+        stream_logger.info("[4] Global step starts...")
 
         pbar = tqdm(range(training_setting['global_epochs']), desc="Global steps #",
                     postfix={'global_acc': aggregator.test_accuracy})
@@ -207,7 +207,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
                 if 'cos' in training_setting['lr_decay'].lower():
                     # INFO - COS decay
                     training_setting['local_lr'] = 1 / 2 * initial_lr * (
-                                1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
+                            1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
                     stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
                     summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
                                                                                          total_g_epochs,

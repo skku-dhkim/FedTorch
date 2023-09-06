@@ -293,9 +293,6 @@ def run(client_setting: dict, training_setting: dict):
     fed_dataset, valid_loader, test_loader = data_preprocessing(client_setting)
 
     # INFO - Client initialization
-    # if 'client' in client_setting.keys() and client_setting['client'] is True:
-    #     client = FedBalancerClient
-    # else:
     client = Client
 
     if training_setting['balancer'] is True:

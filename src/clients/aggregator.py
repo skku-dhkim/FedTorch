@@ -152,6 +152,7 @@ class AggregationBalancer(Aggregator):
                 correct.append((y == y_max_idx).sum().item())
                 indices = self.__accuracy_per_class(y, y_max_idx)
                 label_count[indices] += 1
+                y = y.cpu()
                 total_label[y] += 1
                 total.append(len(x))
             training_acc = sum(correct) / sum(total)
@@ -161,6 +162,8 @@ class AggregationBalancer(Aggregator):
         return training_acc, accuracy_per_label
 
     def __accuracy_per_class(self, y, hat_y):
+        y = y.detach().cpu()
+        hat_y = hat_y.detach().cpu()
         true_indices = (y == hat_y).nonzero(as_tuple=False).squeeze()
         correct_index = y[true_indices]
         return correct_index

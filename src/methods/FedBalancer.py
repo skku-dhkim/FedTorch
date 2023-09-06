@@ -41,9 +41,7 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
                           lr=training_settings['local_lr'])
 
     # INFO - Loss function
-    loss_fn = FeatureBalanceLoss(training_settings['global_epochs'],
-                                 client.num_per_class,
-                                 len(client.global_iter)).to(device)
+    loss_fn = FeatureBalanceLoss(training_settings['global_epochs'], client.num_per_class)
 
     training_acc, training_losses = 0, 0
     test_acc, test_losses = 0, 0
@@ -63,28 +61,24 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
 
             outputs, feature_map = model(inputs)
 
-            model_g.train()
-            model_g.to(device)
-            global_outputs = model_g(inputs)
-
-            loss = loss_fn(outputs, global_outputs, labels, feature_map, i)
+            loss = loss_fn(outputs, labels, feature_map, i, device)
 
             loss.backward()
             optim.step()
 
         client.epoch_counter += 1
-        training_acc, training_losses = F.compute_accuracy(model, client.train_loader, loss_fn, global_model=model_g)
-        test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn, global_model=model_g)
+        training_acc, training_losses = F.compute_accuracy(model, client.train_loader, loss_fn)
+        test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn)
 
-    cos_similarity = torch.nn.CosineSimilarity(dim=-1)
-    model_state = model.state_dict()
-    model_g_state = model_g.state_dict()
+        cos_similarity = torch.nn.CosineSimilarity(dim=-1)
+        model_state = model.state_dict()
+        model_g_state = model_g.state_dict()
 
-    for key, value in model_state.items():
-        flatten_model = value.view(-1)
-        flatten_g_model = model_g_state[key].view(-1)
-        similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
-        summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
+        for key, value in model_state.items():
+            flatten_model = value.view(-1)
+            flatten_g_model = model_g_state[key].view(-1)
+            similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
+            summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
     # INFO - Epoch summary
     summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
@@ -132,7 +126,6 @@ def local_training(clients: list,
 def aggregation_balancer(clients: List[FedBalancerClient],
                          aggregator: Union[Aggregator, AggregationBalancer],
                          global_lr: float = 1.0, temperature: float = 1.0):
-
     csvfile = open(os.path.join(aggregator.summary_path, "experiment_result.csv"), "a", newline='')
     csv_writer = csv.writer(csvfile)
 
@@ -145,24 +138,35 @@ def aggregation_balancer(clients: List[FedBalancerClient],
             empty_model[k].append(client.model[k])
         empty_model[k] = torch.stack(empty_model[k])
 
-    # importance_score = client_importance_score(empty_model['classifier.2.weight'], 'cos', previous_g_model['classifier.2.weight'])
-    # importance_score = client_importance_score(empty_model['logit.weight'], 'cos', previous_g_model['logit.weight'])
     importance_score = None
     for name, v in empty_model.items():
-        if 'features' in name:
-            # NOTE: Averaging the Feature extractor.
-            empty_model[name] = torch.mean(v, 0) * global_lr
+        if 'classifier' in name and 'weight' in name:
+            importance_score = client_importance_score(empty_model[name],
+                                                       'cos',
+                                                       previous_g_model[name],
+                                                       temperature=temperature)
+            score = shape_convert(importance_score, name)
+            empty_model[name] = torch.sum(score * v, dim=0) * global_lr
+        elif 'classifier' in name and 'bias' in name:
+            score = shape_convert(importance_score, name)
+            empty_model[name] = torch.sum(score * v, dim=0) * global_lr
         else:
-            # NOTE: FC layer and logit are aggregated with importance score.
-            if 'classifier.0.weight' in name:
-                importance_score = client_importance_score(empty_model[name],
-                                                           'cos',
-                                                           previous_g_model[name],
-                                                           temperature=temperature)
-                score = shape_convert(importance_score, name)
-                empty_model[name] = torch.sum(score * v, dim=0) * global_lr
-            else:
-                empty_model[name] = torch.mean(v, 0) * global_lr
+            empty_model[name] = torch.mean(v, 0) * global_lr
+
+        # if 'features' in name:
+        #     # NOTE: Averaging the Feature extractor.
+        #     empty_model[name] = torch.mean(v, 0) * global_lr
+        # else:
+        #     # NOTE: FC layer and logit are aggregated with importance score.
+        #     if 'classifier.0.weight' in name:
+        #         importance_score = client_importance_score(empty_model[name],
+        #                                                    'cos',
+        #                                                    previous_g_model[name],
+        #                                                    temperature=temperature)
+        #         score = shape_convert(importance_score, name)
+        #         empty_model[name] = torch.sum(score * v, dim=0) * global_lr
+        #     else:
+        #         empty_model[name] = torch.mean(v, 0) * global_lr
     # for name, v in empty_model.items():
     #     empty_model[name] = torch.mean(v, 0)
 
@@ -208,6 +212,8 @@ def client_importance_score(vector, method, global_model, normalize: bool = True
         cos_similarity = torch.nn.CosineSimilarity(dim=-1)
 
         # NOTE: More similar large similarity value -> large similarity means small changes occurs from global model.
+        g_vector = g_vector.cpu()
+        weight_vec = weight_vec.cpu()
         similarity = cos_similarity(g_vector, weight_vec)
 
         # NOTE: Clipping the value if lower than threshold
@@ -223,7 +229,7 @@ def client_importance_score(vector, method, global_model, normalize: bool = True
 
     if normalize:
         T = temperature
-        score_vector = torch.softmax(score_vector/T, dim=0)
+        score_vector = torch.softmax(score_vector / T, dim=0)
     return score_vector
 
 
@@ -314,7 +320,8 @@ def run(client_setting: dict, training_setting: dict):
             if lr_decay:
                 if 'cos' in training_setting['lr_decay'].lower():
                     # INFO - COS decay
-                    training_setting['local_lr'] = 1/2*initial_lr*(1+math.cos(aggregator.global_iter*math.pi/total_g_epochs))
+                    training_setting['local_lr'] = 1 / 2 * initial_lr * (
+                                1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
                     stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
                     summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
                                                                                          total_g_epochs,

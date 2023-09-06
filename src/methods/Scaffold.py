@@ -68,7 +68,6 @@ def train(
             outputs = model(inputs)
             loss = loss_fn(outputs, labels)
 
-
             prev_state = F.get_parameters(model) #state befor update
 
             loss.backward()
@@ -123,9 +122,6 @@ def train(
 
         summary_writer.add_scalar('epoch_acc/local_train', train_acc, client.epoch_counter)
         summary_writer.add_scalar('epoch_acc/local_test', test_acc, client.epoch_counter)
-
-        # F.mark_accuracy(client, model, summary_writer)
-        # F.mark_entropy(client, model, summary_writer)
 
         F.mark_cosine_similarity(current_state, original_state, summary_writer, client.epoch_counter)
         F.mark_norm_size(current_state, summary_writer, client.epoch_counter)
@@ -217,9 +213,6 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     fed_dataset, valid_loader, test_loader = data_preprocessing(client_setting)
 
     # INFO - Client initialization
-    # if 'client' in client_setting.keys() and client_setting['client'] is True:
-    #     client = FedBalancerClient
-    # else:
     client = Client
 
     if training_setting['balancer'] is True:
@@ -237,7 +230,8 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     try:
         stream_logger.info("[3] Global step starts...")
 
-        pbar = tqdm(range(training_setting['global_epochs']), desc="Global steps #",
+        pbar = tqdm(range(training_setting['global_epochs']),
+                    desc="Global steps #",
                     postfix={'global_acc': aggregator.test_accuracy})
 
         lr_decay = False

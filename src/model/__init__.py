@@ -13,10 +13,10 @@ def model_call(model_name: str, num_of_classes: int, **kwargs):
     elif model_name.lower() == 'moon_cnn':
         return ModelFedCon(10, n_classes=num_of_classes)
     elif model_name.lower() == "resnet-50":
-        _model = ResNet50(num_classes=num_of_classes)
+        _model = ResNet50(num_classes=num_of_classes, **kwargs)
         return _model
     elif model_name.lower() == "resnet-18":
-        _model = ResNet18(num_classes=num_of_classes)
+        _model = ResNet18(num_classes=num_of_classes, **kwargs)
         return _model
     elif model_name.lower() == 'simple_cnn':
         return SimpleCNN(num_classes=num_of_classes, **kwargs)
