@@ -117,7 +117,7 @@ if __name__ == '__main__':
         'balancer': args.balancer
     }
 
-    # train_settings['lr_decay'] = 'cos'
+    train_settings['lr_decay'] = 'cos'
 
     write_experiment_summary("Client Setting", client_settings)
     write_experiment_summary("Training Hyper-parameters", train_settings)
