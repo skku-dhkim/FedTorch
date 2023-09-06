@@ -298,7 +298,7 @@ def run(client_setting: dict, training_setting: dict):
     # else:
     client = Client
 
-    if 'aggregator' in client_setting.keys() and client_setting['aggregator'] is True:
+    if training_setting['balancer'] is True:
         aggregator: type(AggregationBalancer) = AggregationBalancer
     else:
         aggregator = Aggregator
@@ -354,7 +354,7 @@ def run(client_setting: dict, training_setting: dict):
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
 
             stream_logger.debug("[*] Federated aggregation scheme...")
-            if 'aggregator' in client_setting.keys() and client_setting['aggregator'] is True:
+            if training_setting['balancer'] is True:
                 stream_logger.debug("[*] Aggregation Balancer")
                 aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'], training_setting['T'])
             else:

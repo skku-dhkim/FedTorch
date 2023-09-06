@@ -4,7 +4,7 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg, FedKL, FedConst, Fedprox, Scaffold, MOON, FedBalancer, FedNova, FedRS # FedIndi,
+from src.methods import FedAvg, FedKL, FedConst, Fedprox, Scaffold, MOON, FedBalancer, FedNova
 
 import argparse
 import os
@@ -114,11 +114,8 @@ if __name__ == '__main__':
         'T': args.T,
         'weight_decay': args.weight_decay,
         'mu': args.mu,
+        'balancer': args.balancer
     }
-
-    if args.balancer is True:
-        client_settings['client'] = True
-        client_settings['aggregator'] = True
 
     # train_settings['lr_decay'] = 'cos'
 

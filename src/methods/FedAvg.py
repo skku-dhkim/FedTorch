@@ -77,7 +77,7 @@ def train(
         for key, value in model_state.items():
             flatten_model = value.view(-1)
             flatten_g_model = model_g_state[key].view(-1)
-            similarity = cos_similarity(flatten_model, flatten_g_model)
+            similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
             summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
         # INFO - Epoch summary
@@ -164,7 +164,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
     # else:
     client = Client
 
-    if 'aggregator' in client_setting.keys() and client_setting['aggregator'] is True:
+    if training_setting['balancer'] is True:
         aggregator: type(AggregationBalancer) = AggregationBalancer
     else:
         aggregator = Aggregator
@@ -222,7 +222,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
 
             stream_logger.debug("[*] Federated aggregation scheme...")
-            if 'aggregator' in client_setting.keys() and client_setting['aggregator'] is True:
+            if training_setting['balancer'] is True:
                 stream_logger.debug("[*] Aggregation Balancer")
                 aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'], training_setting['T'])
             else:
