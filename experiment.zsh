@@ -15,47 +15,21 @@ n_clients=10
 dirichlet_alpha=0.1
 model="simple_cnn"
 dataset="Cifar-10"
+local_iter=5
+global_iter=2
+
+balancer=True
+
+methods=("FedAvg" "FedProx" "Scaffold" "FedNova" "FedBal" )
+for method in "${methods[@]}"
+do
+  exp_name="$1/${method}_${balancer}"
+  python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter
+done
 
 balancer=False
-method="FedAvg"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-method="FedProx"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-method="Scaffold"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-method="FedNova"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-method="FedBal"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-
-# With balancer experiment
-balancer=True
-method="FedAvg"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-method="FedProx"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-method="Scaffold"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-method="FedNova"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
-
-method="FedBal"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name
+for method in "${methods[@]}"
+do
+  exp_name="$1/${method}_${balancer}"
+  python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter
+done

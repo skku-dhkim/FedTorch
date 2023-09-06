@@ -10,7 +10,6 @@ interrupt_handler() {
 # Set the interrupt signal handler
 trap interrupt_handler SIGINT
 
-
 n_clients=10
 dirichlet_alpha=0.1
 model="resnet-18"
@@ -18,46 +17,21 @@ dataset="Cifar-10"
 gpu=True
 gpu_frac=0.16
 
+local_iter=5
+global_iter=2
+
 balancer=True
-method="FedAvg"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
 
-method="FedProx"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
+methods=("FedAvg" "FedProx" "Scaffold" "FedNova" "FedBal" )
+for method in "${methods[@]}"
+do
+  exp_name="$1/${method}_${balancer}"
+  python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter
+done
 
-method="Scaffold"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
-
-method="FedNova"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
-
-method="FedBal"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
-
-
-# With balancer experiment
 balancer=False
-method="FedAvg"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
-
-method="FedProx"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
-
-method="Scaffold"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
-
-method="FedNova"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
-
-method="FedBal"
-exp_name="$1/${method}_${balancer}"
-python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --gpu $gpu --gpu_frac $gpu_frac
+for method in "${methods[@]}"
+do
+  exp_name="$1/${method}_${balancer}"
+  python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter
+done
