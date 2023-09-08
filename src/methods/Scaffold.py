@@ -78,8 +78,8 @@ def train(
             for k in current_state.keys():
                 grad = (prev_state[k] - current_state[k]) / training_settings['local_lr']
 
-                con = client.correction[k].clone().detach().to(device)
-                gcon = client.gcorrection[k].clone().detach().to(device)
+                con = client.correction[k].clone().detach().cpu()
+                gcon = client.gcorrection[k].clone().detach().cpu()
                 dp = grad + gcon - con
                 current_state[k] -= dp * training_settings['local_lr']
 
