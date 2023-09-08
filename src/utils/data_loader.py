@@ -143,7 +143,8 @@ class CustomDataLoader:
     def _to_dataset(self, clients: list, validation_split: float = 0.1) -> list:
         for client in clients:
             indices = int(len(client['train']['x']) * validation_split)
-
+            if indices <= 0:
+                indices = 1
             train_x = client['train']['x'][:-indices]
             train_y = client['train']['y'][:-indices]
 
