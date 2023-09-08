@@ -7,7 +7,7 @@ from src.methods import *
 from .utils import *
 from torch.optim.optimizer import Optimizer
 from .FedBalancer import aggregation_balancer
-from src.clients import FedBalancerClient, AggregationBalancer
+from src.clients import AggregationBalancer
 
 
 class FedNova(Optimizer):
@@ -337,13 +337,17 @@ def run(client_setting: dict, training_setting: dict):
                     training_setting['local_lr'] = 1 / 2 * initial_lr * (
                                 1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
                     training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
-                    stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
-                    summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
-                                                                                         total_g_epochs,
-                                                                                         training_setting['local_lr']))
+                elif 'manual' in training_setting['lr_decay'].lower():
+                    if aggregator.global_iter in [total_g_epochs // 4, (total_g_epochs * 3) // 8]:
+                        training_setting['local_lr'] *= 0.1
                 else:
                     raise NotImplementedError("Learning rate decay \'{}\' is not implemented yet.".format(
                         training_setting['lr_decay']))
+
+            stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
+            summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
+                                                                                 total_g_epochs,
+                                                                                 training_setting['local_lr']))
 
             # INFO - Local Training
             stream_logger.debug("[*] Local training process...")

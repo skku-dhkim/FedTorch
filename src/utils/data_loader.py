@@ -38,29 +38,31 @@ class CustomDataLoader:
         """
         # Get dirichlet distribution
         # NOTE: If doesn't have sub-directory, manual seed is used.
-        if self.main_dir == Path("./logs").absolute():
-            seed = 2023
-        elif os.path.isfile(os.path.join(self.main_dir, 'seed.txt')):
-            with open(os.path.join(self.main_dir, 'seed.txt'), 'r') as f:
-                seed = f.read().strip()
-                seed = int(seed)
+        # if self.main_dir == Path("./logs").absolute():
+        #     seed = 2023
+        if os.path.isfile(os.path.join(self.main_dir, 'class_distributions.csv')):
+            c_dist = pd.read_csv(os.path.join(self.main_dir, 'class_distributions.csv'), index_col=None)
         else:
             with open(os.path.join(self.main_dir, 'seed.txt'), 'w') as f:
                 seed = random.randint(1, int(1e+4))
                 f.write(str(seed))
-        write_experiment_summary("Data sampling", {"Seed": seed})
 
-        np.random.seed(seed)
-        s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
-        c_dist = pd.DataFrame(s)
-
-        # Round for data division convenience.
-        c_dist = c_dist.round(2)
-        while len(c_dist.columns[(c_dist == 0).all()]) > 0:
+            np.random.seed(seed)
             s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
             c_dist = pd.DataFrame(s)
+
             # Round for data division convenience.
-            c_dist = c_dist.round(2)
+            c_dist = c_dist.round(3)
+            # Note: Keep running until all clients have the data.
+            while len(c_dist.columns[(c_dist == 0).all()]) > 0:
+                s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
+                c_dist = pd.DataFrame(s)
+                # Round for data division convenience.
+                c_dist = c_dist.round(3)
+
+            c_dist.to_csv(os.path.join(self.main_dir, 'class_distributions.csv'), index=False)
+
+        # write_experiment_summary("Data sampling", {"Seed": seed})
 
         sns.set(rc={'figure.figsize': (20, 20)})
         ax = sns.heatmap(c_dist, cmap='YlGnBu', annot=False)

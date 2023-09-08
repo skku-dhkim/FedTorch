@@ -3,7 +3,7 @@ import copy
 import torch.nn.functional as F
 
 from .custom_cnn import CustomCNN, ModelFedCon
-from .cnn import SimpleCNN
+from .cnn import SimpleCNN, ConvNet
 from .resnet import ResNet18, ResNet50
 
 
@@ -20,6 +20,8 @@ def model_call(model_name: str, num_of_classes: int, **kwargs):
         return _model
     elif model_name.lower() == 'simple_cnn':
         return SimpleCNN(num_classes=num_of_classes, **kwargs)
+    elif model_name.lower() == 'convnet':
+        return ConvNet(num_classes=num_of_classes, **kwargs)
     else:
         raise NotImplementedError("Not implemented yet.")
 

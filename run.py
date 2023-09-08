@@ -49,7 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('--T', type=float, default=1.0)
     parser.add_argument('--mu', type=float, default=0.01)
     parser.add_argument('--balancer', type=lambda x: bool(strtobool(x)), default=False)
-    parser.add_argument('--weight_decay', type=float, default=1e-5)
+    parser.add_argument('--weight_decay', type=float, default=1e-4)
     #parser.add_argument('--var_client', type=list, default=[])
 
     # Logs settings
@@ -119,7 +119,8 @@ if __name__ == '__main__':
         'balancer': args.balancer
     }
 
-    train_settings['lr_decay'] = 'cos'
+   # train_settings['lr_decay'] = 'cos'
+    train_settings['lr_decay'] = 'manual'
 
     write_experiment_summary("Client Setting", client_settings)
     write_experiment_summary("Training Hyper-parameters", train_settings)
