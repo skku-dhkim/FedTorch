@@ -21,19 +21,22 @@ gpu_frac=0.16
 local_iter=5
 global_iter=50
 
-balancer=True
-
 methods=("FedAvg" "FedProx" "Scaffold" "FedNova" "FedBal" )
 
 for method in "${methods[@]}"
 do
+  balancer=True
   exp_name="$1/${method}_${balancer}"
   python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio
-done
 
-balancer=False
-for method in "${methods[@]}"
-do
+  balancer=False
   exp_name="$1/${method}_${balancer}"
   python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio
 done
+#
+#balancer=False
+#for method in "${methods[@]}"
+#do
+#  exp_name="$1/${method}_${balancer}"
+#  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio
+#done
