@@ -95,7 +95,7 @@ class CustomDataLoader:
         for idx, client in enumerate(clients):
             distribution = proportion.iloc[idx]
             for k, dist in enumerate(distribution):
-                num_of_data = int(len(self.categories_train_X[k]) * dist)
+                num_of_data = round(len(self.categories_train_X[k]) * dist)
                 client['train']['x'].append(self.categories_train_X[k][idx_manage[k]:idx_manage[k] + num_of_data])
                 client['train']['y'].append(self.categories_train_Y[k][idx_manage[k]:idx_manage[k] + num_of_data])
                 # Update Last index number. It will be first index at next iteration.
@@ -184,11 +184,14 @@ class CustomDataLoader:
 
         # 4. Data allocation
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
-        federated_dataset = self._to_dataset(federated_dataset)
-        valid_loader = DataLoader(DatasetWrapper(self.valid_set, transform=self.transform), batch_size=16)
+        federated_dataset = self._to_dataset(federated_dataset, validation_split=0.05)
+        valid_loader = DataLoader(DatasetWrapper(self.valid_set,
+                                                 transform=self.transform,
+                                                 number_of_categories=self.num_of_categories), batch_size=16)
         # INFO - IID dataset
         test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y},
-                                                transform=self.transform), batch_size=16)
+                                                transform=self.transform,
+                                                number_of_categories=self.num_of_categories), batch_size=16)
 
         return federated_dataset, valid_loader, test_loader
 

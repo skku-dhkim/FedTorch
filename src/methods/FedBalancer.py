@@ -14,8 +14,6 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
     # device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
-    csvfile = open(os.path.join(client.summary_path, "experiment_result.csv"), "a", newline='')
-    csv_writer = csv.writer(csvfile)
 
     # INFO - Call the model architecture and set parameters.
     model = model_call(training_settings['model'], num_of_classes, features=True)
@@ -42,9 +40,6 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
 
     # INFO - Loss function
     loss_fn = FeatureBalanceLoss(training_settings['global_epochs'], client.num_per_class)
-
-    training_acc, training_losses = 0, 0
-    test_acc, test_losses = 0, 0
 
     # INFO: Local training logic
     for i in range(training_settings['local_epochs']):
@@ -78,6 +73,7 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
             flatten_model = value.view(-1)
             flatten_g_model = model_g_state[key].view(-1)
             similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
+            torch.nan_to_num_(similarity)
             summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
         # INFO - Epoch summary
@@ -86,11 +82,9 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
         summary_writer.add_scalar('acc/test', test_acc, client.epoch_counter)
         summary_writer.add_scalar('loss/test', test_losses, client.epoch_counter)
 
-        csv_writer.writerow([training_acc, training_losses, test_acc, test_losses])
 
     # INFO - Local model update
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
-    csvfile.close()
     return client
 
 
@@ -218,6 +212,7 @@ def client_importance_score(vector, method, global_model, normalize: bool = True
         g_vector = g_vector.cpu()
         weight_vec = weight_vec.cpu()
         similarity = cos_similarity(g_vector, weight_vec)
+        torch.nan_to_num_(similarity)
 
         # NOTE: Clipping the value if lower than threshold
         std, mean = torch.std_mean(similarity, dim=-1)
