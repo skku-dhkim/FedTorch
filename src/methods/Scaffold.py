@@ -239,6 +239,9 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             total_g_epochs = training_setting['global_epochs']
             lr_decay = True
 
+        best_accuracy = aggregator.best_acc
+        accuracy_marker = []
+
         for gr in pbar:
             start_time_global_iter = time.time()
 
@@ -253,7 +256,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
             # INFO - Client sampling
             stream_logger.debug("[*] Client sampling...")
-            sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
+            sampled_clients = F.client_sampling(clients, sample_ratio=client_setting['sample_ratio'], global_round=gr)
 
             # INFO - Learning rate decay
             if lr_decay:
@@ -270,10 +273,10 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
                     raise NotImplementedError("Learning rate decay \'{}\' is not implemented yet.".format(
                         training_setting['lr_decay']))
 
-            stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
-            summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
-                                                                                 total_g_epochs,
-                                                                                 training_setting['local_lr']))
+                stream_logger.debug("[*] Learning rate decay: {}".format(training_setting['local_lr']))
+                summary_logger.info("[{}/{}] Current local learning rate: {}".format(aggregator.global_iter,
+                                                                                     total_g_epochs,
+                                                                                     training_setting['local_lr']))
 
             trained_clients = local_training(clients=sampled_clients,
                                              training_settings=training_setting,
@@ -282,7 +285,10 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             stream_logger.debug("[*] Federated aggregation scheme...")
             if training_setting['balancer'] is True:
                 stream_logger.debug("[*] Aggregation Balancer")
-                aggregation_balancer(trained_clients, aggregator, training_setting['global_lr'], training_setting['T'])
+                aggregation_balancer(trained_clients, aggregator,
+                                     training_setting['global_lr'],
+                                     training_setting['T'],
+                                     training_setting['sigma'])
             else:
                 stream_logger.debug("[*] FedAvg")
                 fed_avg(trained_clients, aggregator, training_setting['global_lr'])
@@ -298,7 +304,17 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})
             summary_logger.info("Global Running time: {}::{:.2f}".format(gr,
                                                                          end_time_global_iter - start_time_global_iter))
-            summary_logger.info("Test Accuracy: {}".format(aggregator.test_accuracy))
+            if best_accuracy < aggregator.best_acc:
+                # INFO - Save the global model if it has best accuracy
+                aggregator.save_model()
+                summary_logger.info("Best Test Accuracy: {}".format(aggregator.best_acc))
+                best_accuracy = aggregator.best_acc
+
+            accuracy_marker.append(aggregator.test_accuracy)
+
+        accuracy_marker = np.array(accuracy_marker)
+        np.savetxt(os.path.join(aggregator.summary_path, "Test_accuracy.csv"), accuracy_marker, delimiter=',')
+
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
         system_logger, _ = get_logger(LOGGER_DICT['system'])

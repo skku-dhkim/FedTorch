@@ -32,6 +32,7 @@ if __name__ == '__main__':
     # Data settings
     parser.add_argument('--dataset', type=str, default='Cifar-10')
     parser.add_argument('--save_data', type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument('--sample_ratio', type=float, default=1.0)
 
     # Model settings
     parser.add_argument('--model', type=str, default='Custom_cnn')
@@ -45,12 +46,11 @@ if __name__ == '__main__':
     parser.add_argument('--local_lr', type=float, default=0.01)
     parser.add_argument('--global_lr', type=float, default=1.0)
     parser.add_argument('--momentum', type=float, default=0.9)
-    parser.add_argument('--sample_ratio', type=float, default=1.0)
     parser.add_argument('--T', type=float, default=1.0)
     parser.add_argument('--mu', type=float, default=0.01)
+    parser.add_argument('--sigma', type=int, default=1)
     parser.add_argument('--balancer', type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
-    #parser.add_argument('--var_client', type=list, default=[])
 
     # Logs settings
     parser.add_argument('--summary_count', type=int, default=50)
@@ -62,7 +62,6 @@ if __name__ == '__main__':
 
     # INFO: Log settings
     experiment_name = args.exp_name
-    # log_path = os.path.join("./logs", "{}_{}".format(datetime.today().date(), experiment_name))
     log_path = os.path.join("./logs", "{}".format(experiment_name))
 
     os.makedirs(log_path, exist_ok=True)
@@ -95,7 +94,8 @@ if __name__ == '__main__':
     client_settings = {
         'num_of_clients': args.n_clients,
         'dirichlet_alpha': args.dirichlet_alpha,
-        'dataset': args.dataset
+        'dataset': args.dataset,
+        'sample_ratio': args.sample_ratio,
     }
 
     # INFO: Training settings
@@ -112,15 +112,13 @@ if __name__ == '__main__':
         'use_gpu': args.gpu,
         'gpu_frac': args.gpu_frac,
         'summary_count': args.summary_count,
-        'sample_ratio': args.sample_ratio,
         'T': args.T,
         'weight_decay': args.weight_decay,
         'mu': args.mu,
-        'balancer': args.balancer
+        'sigma': args.sigma,
+        'balancer': args.balancer,
+        'lr_decay': 'manual'
     }
-
-   # train_settings['lr_decay'] = 'cos'
-    train_settings['lr_decay'] = 'manual'
 
     write_experiment_summary("Client Setting", client_settings)
     write_experiment_summary("Training Hyper-parameters", train_settings)

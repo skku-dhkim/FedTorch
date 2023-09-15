@@ -35,23 +35,11 @@ class Client:
         # Model
         self.model: Optional[OrderedDict] = None
 
-        # self.num_per_class = self.train.num_per_class
-
         # Cosine Similarity
         # self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)
 
     def data_len(self):
         return len(self.train)
-
-# class FedKL_Client(Client):
-#     def __init__(self,
-#                  client_name: str,
-#                  data: dict,
-#                  batch_size: int,
-#                  log_path: str):
-#         super().__init__(client_name, data, batch_size, log_path)
-#         self.F_entropy_gap = None
-#         self.O_entropy_gap = None
 
 
 class FedBalancerClient(Client):
@@ -62,6 +50,3 @@ class FedBalancerClient(Client):
                  log_path: str):
         super().__init__(client_name, data, batch_size, log_path)
         self.num_per_class = self.train.num_per_class
-
-    # def activation_counter_clear(self):
-    #     self.activation_counts = None

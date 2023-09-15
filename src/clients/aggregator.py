@@ -1,5 +1,3 @@
-import torch
-
 from src import *
 from src.clients import *
 from src.model import *
@@ -65,6 +63,10 @@ class Aggregator:
         # Initial model accuracy
         self.test_accuracy = self.compute_accuracy()
         self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)
+        if type(self.test_accuracy) == tuple:
+            self.best_acc = self.test_accuracy[0]
+        else:
+            self.best_acc = self.test_accuracy
 
     def set_parameters(self, state_dict: Union[OrderedDict, dict], strict=True) -> None:
         self.model.load_state_dict(state_dict, strict=strict)
@@ -157,8 +159,6 @@ class AggregationBalancer(Aggregator):
                 total.append(len(x))
             training_acc = sum(correct) / sum(total)
             accuracy_per_label = label_count / total_label
-            # print(accuracy_per_label)
-            # print(total_label)
         return training_acc, accuracy_per_label
 
     def __accuracy_per_class(self, y, hat_y):

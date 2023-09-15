@@ -10,26 +10,26 @@ interrupt_handler() {
 # Set the interrupt signal handler
 trap interrupt_handler SIGINT
 
-n_clients=10
+n_clients=20
 sample_ratio=0.2
 dirichlet_alpha=0.1
-model="resnet-18"
+model="ConvNet"
 dataset="Cifar-10"
 gpu=True
-gpu_frac=0.16
+gpu_frac=0.15
 
-local_iter=5
-global_iter=50
+local_iter=10
+global_iter=130
 
 methods=("FedAvg" "FedProx" "Scaffold" "FedNova" "FedBal" )
 
 for method in "${methods[@]}"
 do
-  balancer=True
+  balancer=False
   exp_name="$1/${method}_${balancer}"
   python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio
 
-  balancer=False
+  balancer=True
   exp_name="$1/${method}_${balancer}"
   python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio
 done
