@@ -204,7 +204,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
             # INFO - Client sampling
             stream_logger.debug("[*] Client sampling...")
-            sampled_clients = F.client_sampling(clients, client_setting=training_setting['sample_ratio'], global_round=gr)
+            sampled_clients = F.client_sampling(clients, sample_ratio=client_setting['sample_ratio'], global_round=gr)
 
             # INFO - Learning rate decay
             if lr_decay:
