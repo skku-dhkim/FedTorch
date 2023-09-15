@@ -364,7 +364,7 @@ def run(client_setting: dict, training_setting: dict):
                 aggregation_balancer(trained_clients, aggregator,
                                      training_setting['global_lr'],
                                      training_setting['T'],
-                                     training_setting['sigma'])
+                                     training_setting['sigma'], training_setting['inverse'])
             else:
                 stream_logger.debug("[*] FedAvg")
                 fed_avg(trained_clients, aggregator, training_setting['global_lr'])

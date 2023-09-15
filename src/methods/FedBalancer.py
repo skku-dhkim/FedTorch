@@ -20,10 +20,10 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
     model.load_state_dict(client.model)
     model = model.to(device)
 
-    model_g = model_call(training_settings['model'], num_of_classes, features=False)
-    model_g.load_state_dict(client.model)
-    model_g = model_g.to(device)
-    model_g.eval()
+    # model_g = model_call(training_settings['model'], num_of_classes, features=False)
+    # model_g.load_state_dict(client.model)
+    # model_g = model_g.to(device)
+    # model_g.eval()
 
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
@@ -65,19 +65,19 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
         training_acc, training_losses = F.compute_accuracy(model, client.train_loader, loss_fn)
         test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn)
 
-        cos_similarity = torch.nn.CosineSimilarity(dim=-1)
-        model_state = model.state_dict()
-        model_g_state = model_g.state_dict()
+        # cos_similarity = torch.nn.CosineSimilarity(dim=-1)
+        # model_state = model.state_dict()
+        # model_g_state = model_g.state_dict()
 
-        for key, value in model_state.items():
-            if "weight" in key:
-                flatten_model = value.view(-1)
-                flatten_g_model = model_g_state[key].view(-1)
-                similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
-                torch.nan_to_num_(similarity)
-
-                # client.similarities[key] = similarity.numpy()
-                summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
+        # for key, value in model_state.items():
+        #     if "weight" in key:
+        #         flatten_model = value.view(-1)
+        #         flatten_g_model = model_g_state[key].view(-1)
+        #         similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
+        #         torch.nan_to_num_(similarity)
+        #
+        #         # client.similarities[key] = similarity.numpy()
+        #         summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
         # INFO - Epoch summary
         summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
@@ -121,7 +121,7 @@ def local_training(clients: list,
 
 def aggregation_balancer(clients: List[FedBalancerClient],
                          aggregator: Union[Aggregator, AggregationBalancer],
-                         global_lr: float = 1.0, temperature: float = 1.0, sigma: int = 1):
+                         global_lr: float = 1.0, temperature: float = 1.0, sigma: int = 1, inverse: bool = True):
 
     csvfile = open(os.path.join(aggregator.summary_path, "accuracy_per_class.csv"), "a", newline='')
     csv_writer = csv.writer(csvfile)
@@ -143,7 +143,7 @@ def aggregation_balancer(clients: List[FedBalancerClient],
                                                        'cos',
                                                        previous_g_model[name],
                                                        sigma=sigma,
-                                                       temperature=temperature)
+                                                       temperature=temperature, inverse=inverse)
             score = shape_convert(importance_score, name)
             empty_model[name] = torch.sum(score * v, dim=0) * global_lr
         elif 'classifier' in name and 'bias' in name:
@@ -170,7 +170,7 @@ def aggregation_balancer(clients: List[FedBalancerClient],
     csvfile.close()
 
 
-def client_importance_score(vector, method, global_model, normalize: bool = True, sigma=1, temperature=1.0):
+def client_importance_score(vector, method, global_model, normalize: bool = True, sigma=3, temperature=1.0, inverse=True):
     weight_vec = vector.view(vector.size()[0], -1)
 
     if method == 'euclidean'.lower():
@@ -207,7 +207,13 @@ def client_importance_score(vector, method, global_model, normalize: bool = True
         similarity[similarity < threshold] = threshold
 
         # NOTE: Projection
-        score_vector = torch.exp(similarity)
+        if inverse:
+            # NOTE: Large similar (x=1) -> Has large weights
+            score_vector = torch.exp(similarity)
+        else:
+            # NOTE: Large similar (x=1) -> Has less weights
+            score_vector = torch.exp(-similarity)
+
     else:
         raise NotImplementedError('Method {} is not implemented'.format(method))
 
@@ -326,13 +332,15 @@ def run(client_setting: dict, training_setting: dict):
                 aggregation_balancer(trained_clients, aggregator,
                                      training_setting['global_lr'],
                                      training_setting['T'],
-                                     training_setting['sigma'])
+                                     training_setting['sigma'], training_setting['inverse'])
             else:
                 stream_logger.debug("[*] FedAvg")
                 fed_avg(trained_clients, aggregator, training_setting['global_lr'])
 
             stream_logger.debug("[*] Weight Updates")
             clients = F.update_client_dict(clients, trained_clients)
+
+            # F.draw_layer_similarity(clients, aggregator.summary_path, aggregator.global_iter)
 
             end_time_global_iter = time.time()
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})

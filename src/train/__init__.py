@@ -21,5 +21,6 @@ __all__ = [
     'torch',
     'call_optimizer',
     'nn',
-    'Optional', 'Union'
+    'Optional', 'Union',
+    'pd'
 ]

@@ -153,7 +153,7 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
         aggregator.save_model()
 
 
-def run(client_setting: dict, training_setting: dict, b_save_model: bool = False, b_save_data: bool = False):
+def run(client_setting: dict, training_setting: dict):
     stream_logger, _ = get_logger(LOGGER_DICT['stream'])
     summary_logger, _ = get_logger(LOGGER_DICT['summary'])
 
@@ -235,17 +235,13 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
                 aggregation_balancer(trained_clients, aggregator,
                                      training_setting['global_lr'],
                                      training_setting['T'],
-                                     training_setting['sigma'])
+                                     training_setting['sigma'], training_setting['inverse'])
             else:
                 stream_logger.debug("[*] FedAvg")
                 fed_avg(trained_clients, aggregator, training_setting['global_lr'])
 
             stream_logger.debug("[*] Weight Updates")
             clients = F.update_client_dict(clients, trained_clients)
-
-            # INFO - Save client models
-            if b_save_model:
-                save_model(clients)
 
             end_time_global_iter = time.time()
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})
@@ -270,11 +266,5 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
     end_run_time = time.time()
     summary_logger.info("Global Running time: {:.2f}".format(end_run_time - start_runtime))
-
-    # INFO - Save client's data
-    if b_save_data:
-        save_data(clients)
-        aggregator.save_data()
-
     summary_logger.info("Experiment finished.")
     stream_logger.info("Experiment finished.")

@@ -51,12 +51,13 @@ if __name__ == '__main__':
     parser.add_argument('--sigma', type=int, default=1)
     parser.add_argument('--balancer', type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument('--weight_decay', type=float, default=1e-4)
+    parser.add_argument('--inverse', type=lambda x: bool(strtobool(x)), default=True)
 
     # Logs settings
     parser.add_argument('--summary_count', type=int, default=50)
 
     # System settings
-    parser.add_argument('--ray_core', type=int, default=1)
+    parser.add_argument('--cpus', type=int, default=1)
 
     args = parser.parse_args()
 
@@ -111,18 +112,20 @@ if __name__ == '__main__':
         'batch_size': args.batch,
         'use_gpu': args.gpu,
         'gpu_frac': args.gpu_frac,
+        'cpus': args.cpus,
         'summary_count': args.summary_count,
         'T': args.T,
         'weight_decay': args.weight_decay,
         'mu': args.mu,
         'sigma': args.sigma,
         'balancer': args.balancer,
-        'lr_decay': 'manual'
+        'lr_decay': 'manual',
+        'inverse': args.inverse
     }
 
     write_experiment_summary("Client Setting", client_settings)
     write_experiment_summary("Training Hyper-parameters", train_settings)
-    write_experiment_summary("Device Settings", {'Core per ray': args.ray_core, 'Num of Processor': os.cpu_count(),
+    write_experiment_summary("Device Settings", {'Core per ray': args.cpus, 'Num of Processor': os.cpu_count(),
                                                  'GPU Fraction': args.gpu_frac})
 
     # INFO: Main starts
@@ -143,13 +146,6 @@ if __name__ == '__main__':
             MOON.run(client_settings, train_settings)
         else:
             raise NotImplementedError("\'{}\' is not implemented method.".format(args.method))
-
-        # FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedAD.run(client_settings, train_settings, experiment_name,
-        #           b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedIndi.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedConst.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedRS.run(client_settings, train_settings)
 
     except Exception as e:
         system_logger.error(traceback.format_exc())

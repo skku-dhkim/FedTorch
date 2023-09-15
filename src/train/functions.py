@@ -1,3 +1,5 @@
+import pandas as pd
+
 from src import *
 from src.clients import Aggregator
 from torch.nn import Module
@@ -125,7 +127,7 @@ def client_sampling(clients: dict, sample_ratio: float, global_round: int) -> li
     """
     sampled_clients = random.sample(list(clients.values()), k=int(len(clients.keys()) * sample_ratio))
     for client in sampled_clients:
-        # NOTE: I think it is purpose to check what clients are joined corresponding global iteration.
+        # NOTE: This list shape of global iteration count has purpose to check participants of global iteration.
         client.global_iter.append(global_round)
     return sampled_clients
 
@@ -594,3 +596,19 @@ def get_parameters(model, ordict: bool = True) -> Union[OrderedDict, Any]:
         return OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
     else:
         return [val.clone().detach().cpu() for _, val in model.state_dict().items()]
+
+
+def draw_layer_similarity(clients, log_path, global_iter):
+    data = {}
+
+    for client in clients.values():
+        data[client.name] = client.similarities
+    df = pd.DataFrame(data)
+    df = df.astype(float)
+
+    sns.set(rc={'figure.figsize': (10, 10)})
+    ax = sns.heatmap(df, cmap='YlGnBu', annot=True, fmt=".3g")
+    ax.set(xlabel='Clients', ylabel='Layers')
+    figure = ax.get_figure()
+    figure.savefig(os.path.join(log_path, 'cosine_similarities_{}.png'.format(global_iter)), format='png')
+    figure.clear()

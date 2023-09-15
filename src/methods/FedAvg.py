@@ -14,7 +14,7 @@ def train(
     device = "cuda" if torch.cuda.is_available() is True else "cpu"
 
     # INFO: Unblock the code if you use M1 GPU
-    # device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
+    # device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
 
@@ -23,9 +23,9 @@ def train(
     model.load_state_dict(client.model)
     model = model.to(device)
 
-    model_g = model_call(training_settings['model'], num_of_classes)
-    model_g.load_state_dict(client.model)
-    model_g = model_g.to(device)
+    # model_g = model_call(training_settings['model'], num_of_classes)
+    # model_g.load_state_dict(client.model)
+    # model_g = model_g.to(device)
 
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
@@ -68,17 +68,21 @@ def train(
             client.step_counter += 1
             summary_counter += 1
 
-        # INFO - CoS similarity of evaluation.
-        cos_similarity = torch.nn.CosineSimilarity(dim=-1)
+        # # INFO - CoS similarity of evaluation.
+        # cos_similarity = torch.nn.CosineSimilarity(dim=-1)
+        #
+        # model_state = model.state_dict()
+        # model_g_state = model_g.state_dict()
 
-        model_state = model.state_dict()
-        model_g_state = model_g.state_dict()
-
-        for key, value in model_state.items():
-            flatten_model = value.view(-1)
-            flatten_g_model = model_g_state[key].view(-1)
-            similarity = cos_similarity(flatten_model, flatten_g_model)
-            summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
+        # for key, value in model_state.items():
+        #     if "weight" in key:
+        #         flatten_model = value.view(-1)
+        #         flatten_g_model = model_g_state[key].view(-1)
+        #         similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
+        #         torch.nan_to_num_(similarity)
+        #
+        #         client.similarities[key] = similarity.numpy()
+        #         summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
         # INFO - Epoch summary
         test_acc, test_loss = F.compute_accuracy(model, client.test_loader, loss_fn)
@@ -111,13 +115,14 @@ def local_training(clients: list,
     ray_jobs = []
     for client in clients:
         if training_settings['use_gpu']:
-            ray_jobs.append(train.options(num_gpus=training_settings['gpu_frac']).remote(client,
+            ray_jobs.append(train.options(num_cpus=training_settings['cpus'],
+                                          num_gpus=training_settings['gpu_frac']).remote(client,
                                                                                          training_settings,
                                                                                          num_of_class))
         else:
-            ray_jobs.append(train.options().remote(client,
-                                                   training_settings,
-                                                   num_of_class))
+            ray_jobs.append(train.options(num_cpus=training_settings['cpus']).remote(client,
+                                                                                     training_settings,
+                                                                                     num_of_class))
     trained_result = []
     while len(ray_jobs):
         done_id, ray_jobs = ray.wait(ray_jobs)
@@ -130,6 +135,10 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     total_len = 0
     empty_model = OrderedDict()
 
+    # NOTE: This is temporal code for evaluation
+    # csvfile = open(os.path.join(aggregator.summary_path, "accuracy_per_class.csv"), "a", newline='')
+    # csv_writer = csv.writer(csvfile)
+
     for client in clients:
         total_len += client.data_len()
 
@@ -137,21 +146,27 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
         for client in clients:
             if k not in empty_model.keys():
                 empty_model[k] = client.model[k] * (client.data_len() / total_len) * global_lr
+                # empty_model[k] = client.model[k] * (1/10) * global_lr
+
             else:
                 empty_model[k] += client.model[k] * (client.data_len() / total_len) * global_lr
+                # empty_model[k] += client.model[k] * (1/10) * global_lr
 
     # Global model updates
     aggregator.set_parameters(empty_model)
     aggregator.global_iter += 1
-
-    aggregator.test_accuracy = aggregator.compute_accuracy()
     aggregator.summary_writer.add_scalar('global_test_acc', aggregator.test_accuracy, aggregator.global_iter)
 
+    # aggregator.test_accuracy = aggregator.compute_accuracy()
+    # NOTE: This is temporal code for evaluation
+    # aggregator.test_accuracy, accuracy_per_class = aggregator.compute_accuracy()
+    # csv_writer.writerow(accuracy_per_class.numpy())
+    # csvfile.close()
     if model_save:
         aggregator.save_model()
 
 
-def run(client_setting: dict, training_setting: dict, b_save_model: bool = False, b_save_data: bool = False):
+def run(client_setting: dict, training_setting: dict):
     stream_logger, _ = get_logger(LOGGER_DICT['stream'])
     summary_logger, _ = get_logger(LOGGER_DICT['summary'])
 
@@ -165,6 +180,8 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
         aggregator: type(AggregationBalancer) = AggregationBalancer
     else:
         aggregator = Aggregator
+        # NOTE: This is temporal code for evaluation
+        # aggregator = AggregationBalancer
 
     clients, aggregator = client_initialize(client, aggregator,
                                             fed_dataset, test_loader, valid_loader,
@@ -200,7 +217,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
             # INFO - Client sampling
             stream_logger.debug("[*] Client sampling...")
-            sampled_clients = F.client_sampling(clients, sample_ratio=training_setting['sample_ratio'], global_round=gr)
+            sampled_clients = F.client_sampling(clients, sample_ratio=client_setting['sample_ratio'], global_round=gr)
 
             # INFO - Learning rate decay
             if lr_decay:
@@ -232,7 +249,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
                 aggregation_balancer(trained_clients, aggregator,
                                      training_setting['global_lr'],
                                      training_setting['T'],
-                                     training_setting['sigma'])
+                                     training_setting['sigma'], training_setting['inverse'])
             else:
                 stream_logger.debug("[*] FedAvg")
                 fed_avg(trained_clients, aggregator, training_setting['global_lr'])
@@ -240,9 +257,7 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
             stream_logger.debug("[*] Weight Updates")
             clients = F.update_client_dict(clients, trained_clients)
 
-            # INFO - Save client models
-            if b_save_model:
-                save_model(clients)
+            # F.draw_layer_similarity(clients, aggregator.summary_path, aggregator.global_iter)
 
             end_time_global_iter = time.time()
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})
@@ -267,11 +282,6 @@ def run(client_setting: dict, training_setting: dict, b_save_model: bool = False
 
     end_run_time = time.time()
     summary_logger.info("Global Running time: {:.2f}".format(end_run_time - start_runtime))
-
-    # INFO - Save client's data
-    if b_save_data:
-        save_data(clients)
-        aggregator.save_data()
 
     summary_logger.info("Experiment finished.")
     stream_logger.info("Experiment finished.")

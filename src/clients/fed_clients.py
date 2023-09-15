@@ -37,6 +37,7 @@ class Client:
 
         # Cosine Similarity
         # self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)
+        # self.similarities = {}
 
     def data_len(self):
         return len(self.train)

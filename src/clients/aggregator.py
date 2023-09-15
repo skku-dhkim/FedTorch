@@ -81,7 +81,7 @@ class Aggregator:
         save_path = os.path.join(self.summary_path, "model")
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-        save_path = os.path.join(save_path, "global_iter_{}.pt".format(self.global_iter))
+        save_path = os.path.join(save_path, "Best_global_model.pt".format(self.global_iter))
 
         torch.save({
             'global_epoch': self.global_iter,
