@@ -256,6 +256,9 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     aggregator.test_accuracy = aggregator.compute_accuracy()
     aggregator.summary_writer.add_scalar('global_test_acc', aggregator.test_accuracy, aggregator.global_iter)
 
+    if aggregator.test_accuracy > aggregator.best_acc:
+        aggregator.best_acc = aggregator.test_accuracy
+
 
 def run(client_setting: dict, training_setting: dict):
     stream_logger, _ = get_logger(LOGGER_DICT['stream'])

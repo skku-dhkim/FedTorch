@@ -190,15 +190,10 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     aggregator.global_iter += 1
 
     aggregator.test_accuracy = aggregator.compute_accuracy()
-
-    # TODO: Adapt in a future.
-    # Calculate cos_similarity with previous representations
-    # aggregator.calc_rep_similarity()
-    #
-    # # Calculate cos_similarity of weights
-    # current_model = self.get_parameters()
-    # self.calc_cos_similarity(original_model, current_model)
     aggregator.summary_writer.add_scalar('global_test_acc', aggregator.test_accuracy, aggregator.global_iter)
+
+    if aggregator.test_accuracy > aggregator.best_acc:
+        aggregator.best_acc = aggregator.test_accuracy
 
     if model_save:
         aggregator.save_model()

@@ -157,6 +157,8 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     aggregator.global_iter += 1
     aggregator.test_accuracy = aggregator.compute_accuracy()
     aggregator.summary_writer.add_scalar('global_test_acc', aggregator.test_accuracy, aggregator.global_iter)
+    if aggregator.test_accuracy > aggregator.best_acc:
+        aggregator.best_acc = aggregator.test_accuracy
 
     # NOTE: This is temporal code for evaluation
     # aggregator.test_accuracy, accuracy_per_class = aggregator.compute_accuracy()
