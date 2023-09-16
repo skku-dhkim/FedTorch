@@ -155,9 +155,9 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     # Global model updates
     aggregator.set_parameters(empty_model)
     aggregator.global_iter += 1
+    aggregator.test_accuracy = aggregator.compute_accuracy()
     aggregator.summary_writer.add_scalar('global_test_acc', aggregator.test_accuracy, aggregator.global_iter)
 
-    # aggregator.test_accuracy = aggregator.compute_accuracy()
     # NOTE: This is temporal code for evaluation
     # aggregator.test_accuracy, accuracy_per_class = aggregator.compute_accuracy()
     # csv_writer.writerow(accuracy_per_class.numpy())
