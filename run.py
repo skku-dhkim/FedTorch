@@ -4,7 +4,7 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg, FedKL, FedConst, Fedprox, Scaffold, MOON, FedBalancer # FedIndi,
+from src.methods import FedAvg, FedKL, FedConst, Fedprox, Scaffold, MOON, FedBalancer, FedNova
 
 import argparse
 import os
@@ -15,15 +15,24 @@ if __name__ == '__main__':
     # Argument Parser
     parser = argparse.ArgumentParser(description="Federated Learning on Pytorch")
 
+    # INFO: Required Parameters
+    # Data settings
+    parser.add_argument('--n_clients', type=int, required=True)
+    parser.add_argument('--dirichlet_alpha', type=float, required=True)
+
+    # Training Settings
+    parser.add_argument('--method', type=str, required=True)
+    parser.add_argument('--exp_name', type=str, required=True)
+
+    # INFO: Optional Settings
     # GPU settings
     parser.add_argument('--gpu', type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument('--gpu_frac', type=float, default=1.0)
 
     # Data settings
-    parser.add_argument('--n_clients', type=int, required=True)
-    parser.add_argument('--dirichlet_alpha', type=float, default=0.5)
     parser.add_argument('--dataset', type=str, default='Cifar-10')
     parser.add_argument('--save_data', type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument('--sample_ratio', type=float, default=1.0)
 
     # Model settings
     parser.add_argument('--model', type=str, default='Custom_cnn')
@@ -31,29 +40,31 @@ if __name__ == '__main__':
 
     # Training settings
     parser.add_argument('--opt', type=str, default='SGD')
-    parser.add_argument('--batch', type=int, default=50)
+    parser.add_argument('--batch', type=int, default=32)
     parser.add_argument('--local_iter', type=int, default=5)
-    parser.add_argument('--global_iter', type=int, default=50)
+    parser.add_argument('--global_iter', type=int, default=100)
     parser.add_argument('--local_lr', type=float, default=0.01)
     parser.add_argument('--global_lr', type=float, default=1.0)
     parser.add_argument('--momentum', type=float, default=0.9)
-    parser.add_argument('--sample_ratio', type=float, default=1.0)
     parser.add_argument('--T', type=float, default=1.0)
     parser.add_argument('--mu', type=float, default=0.01)
-    #parser.add_argument('--var_client', type=list, default=[])
+    parser.add_argument('--sigma', type=int, default=1)
+    parser.add_argument('--balancer', type=lambda x: bool(strtobool(x)), default=False)
+    parser.add_argument('--weight_decay', type=float, default=1e-4)
+    parser.add_argument('--inverse', type=lambda x: bool(strtobool(x)), default=True)
 
     # Logs settings
-    parser.add_argument('--exp_name', type=str, required=True)
     parser.add_argument('--summary_count', type=int, default=50)
 
     # System settings
-    parser.add_argument('--ray_core', type=int, default=1)
+    parser.add_argument('--cpus', type=int, default=1)
 
     args = parser.parse_args()
 
     # INFO: Log settings
     experiment_name = args.exp_name
-    log_path = os.path.join("./logs", "{}_{}".format(datetime.today().date(), experiment_name))
+    log_path = os.path.join("./logs", "{}".format(experiment_name))
+
     os.makedirs(log_path, exist_ok=True)
     LOGGER_DICT['path'] = log_path
 
@@ -84,11 +95,13 @@ if __name__ == '__main__':
     client_settings = {
         'num_of_clients': args.n_clients,
         'dirichlet_alpha': args.dirichlet_alpha,
-        'dataset': args.dataset
+        'dataset': args.dataset,
+        'sample_ratio': args.sample_ratio,
     }
 
     # INFO: Training settings
     train_settings = {
+        'scheme': args.method,
         'model': args.model,
         'optim': args.opt,
         'global_lr': args.global_lr,
@@ -99,35 +112,44 @@ if __name__ == '__main__':
         'batch_size': args.batch,
         'use_gpu': args.gpu,
         'gpu_frac': args.gpu_frac,
+        'cpus': args.cpus,
         'summary_count': args.summary_count,
-        'sample_ratio': args.sample_ratio,
-        'temperature': args.T,
-        'weight_decay': 1e-5,
-        'kl_temp': 2,
-        'indicator_temp': 1,
+        'T': args.T,
+        'weight_decay': args.weight_decay,
         'mu': args.mu,
+        'sigma': args.sigma,
+        'balancer': args.balancer,
+        'lr_decay': 'manual',
+        'inverse': args.inverse
     }
 
     write_experiment_summary("Client Setting", client_settings)
     write_experiment_summary("Training Hyper-parameters", train_settings)
-    write_experiment_summary("Device Settings", {'Core per ray': args.ray_core, 'Num of Processor': os.cpu_count(),
+    write_experiment_summary("Device Settings", {'Core per ray': args.cpus, 'Num of Processor': os.cpu_count(),
                                                  'GPU Fraction': args.gpu_frac})
 
     # INFO: Main starts
     try:
         # INFO: Run Function
         # TODO: Make additional Federated method
-        # FedKL.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        FedBalancer.run(client_settings, train_settings)
-        # FedAD.run(client_settings, train_settings, experiment_name,
-        #           b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedIndi.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedAvg.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # Fedprox.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # FedConst.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # Scaffold.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
-        # MOON.run(client_settings, train_settings, b_save_model=args.save_model, b_save_data=args.save_data)
+        if 'fedavg' in args.method.lower():
+            FedAvg.run(client_settings, train_settings)
+        elif 'fedbal' in args.method.lower():
+            FedBalancer.run(client_settings, train_settings)
+        elif 'fedprox' in args.method.lower():
+            Fedprox.run(client_settings, train_settings)
+        elif 'scaffold' in args.method.lower():
+            Scaffold.run(client_settings, train_settings)
+        elif 'fednova' in args.method.lower():
+            FedNova.run(client_settings, train_settings)
+        elif 'moon' in args.method.lower():
+            MOON.run(client_settings, train_settings)
+        else:
+            raise NotImplementedError("\'{}\' is not implemented method.".format(args.method))
 
     except Exception as e:
         system_logger.error(traceback.format_exc())
         raise Exception(traceback.format_exc())
+    except KeyboardInterrupt:
+        print("Terminating process...")
+        raise SystemExit()

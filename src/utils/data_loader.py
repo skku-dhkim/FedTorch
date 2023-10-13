@@ -38,29 +38,31 @@ class CustomDataLoader:
         """
         # Get dirichlet distribution
         # NOTE: If doesn't have sub-directory, manual seed is used.
-        if self.main_dir == Path("./logs").absolute():
-            seed = 2023
-        elif os.path.isfile(os.path.join(self.main_dir, 'seed.txt')):
-            with open(os.path.join(self.main_dir, 'seed.txt'), 'r') as f:
-                seed = f.read().strip()
-                seed = int(seed)
+        # if self.main_dir == Path("./logs").absolute():
+        #     seed = 2023
+        if os.path.isfile(os.path.join(self.main_dir, 'class_distributions.csv')):
+            c_dist = pd.read_csv(os.path.join(self.main_dir, 'class_distributions.csv'), index_col=None)
         else:
             with open(os.path.join(self.main_dir, 'seed.txt'), 'w') as f:
                 seed = random.randint(1, int(1e+4))
                 f.write(str(seed))
-        write_experiment_summary("Data sampling", {"Seed": seed})
 
-        np.random.seed(seed)
-        s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
-        c_dist = pd.DataFrame(s)
-
-        # Round for data division convenience.
-        c_dist = c_dist.round(2)
-        while len(c_dist.columns[(c_dist == 0).all()]) > 0:
+            np.random.seed(seed)
             s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
             c_dist = pd.DataFrame(s)
+
             # Round for data division convenience.
-            c_dist = c_dist.round(2)
+            c_dist = c_dist.round(3)
+            # Note: Keep running until all clients have the data.
+            while len(c_dist.columns[(c_dist == 0).all()]) > 0:
+                s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
+                c_dist = pd.DataFrame(s)
+                # Round for data division convenience.
+                c_dist = c_dist.round(3)
+
+            c_dist.to_csv(os.path.join(self.main_dir, 'class_distributions.csv'), index=False)
+
+        # write_experiment_summary("Data sampling", {"Seed": seed})
 
         sns.set(rc={'figure.figsize': (20, 20)})
         ax = sns.heatmap(c_dist, cmap='YlGnBu', annot=False)
@@ -93,7 +95,7 @@ class CustomDataLoader:
         for idx, client in enumerate(clients):
             distribution = proportion.iloc[idx]
             for k, dist in enumerate(distribution):
-                num_of_data = int(len(self.categories_train_X[k]) * dist)
+                num_of_data = round(len(self.categories_train_X[k]) * dist)
                 client['train']['x'].append(self.categories_train_X[k][idx_manage[k]:idx_manage[k] + num_of_data])
                 client['train']['y'].append(self.categories_train_Y[k][idx_manage[k]:idx_manage[k] + num_of_data])
                 # Update Last index number. It will be first index at next iteration.
@@ -141,7 +143,8 @@ class CustomDataLoader:
     def _to_dataset(self, clients: list, validation_split: float = 0.1) -> list:
         for client in clients:
             indices = int(len(client['train']['x']) * validation_split)
-
+            if indices <= 0:
+                indices = 1
             train_x = client['train']['x'][:-indices]
             train_y = client['train']['y'][:-indices]
 
@@ -181,11 +184,14 @@ class CustomDataLoader:
 
         # 4. Data allocation
         federated_dataset = self._data_proportion_allocate(clients, proportion=client_distribution)
-        federated_dataset = self._to_dataset(federated_dataset)
-        valid_loader = DataLoader(DatasetWrapper(self.valid_set, transform=self.transform), batch_size=16)
+        federated_dataset = self._to_dataset(federated_dataset, validation_split=0.05)
+        valid_loader = DataLoader(DatasetWrapper(self.valid_set,
+                                                 transform=self.transform,
+                                                 number_of_categories=self.num_of_categories), batch_size=16)
         # INFO - IID dataset
         test_loader = DataLoader(DatasetWrapper({'x': self.test_X, 'y': self.test_Y},
-                                                transform=self.transform), batch_size=16)
+                                                transform=self.transform,
+                                                number_of_categories=self.num_of_categories), batch_size=16)
 
         return federated_dataset, valid_loader, test_loader
 

@@ -32,10 +32,10 @@ class BasicBlock(nn.Module):
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = norm_layer(planes)
+        self.bn1 = norm_layer(planes, track_running_stats=False)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
-        self.bn2 = norm_layer(planes)
+        self.bn2 = norm_layer(planes, track_running_stats=False)
         self.downsample = downsample
         self.stride = stride
 
@@ -75,11 +75,11 @@ class Bottleneck(nn.Module):
         width = int(planes * (base_width / 64.)) * groups
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
-        self.bn1 = norm_layer(width)
+        self.bn1 = norm_layer(width, track_running_stats=False)
         self.conv2 = conv3x3(width, width, stride, groups, dilation)
-        self.bn2 = norm_layer(width)
+        self.bn2 = norm_layer(width, track_running_stats=False)
         self.conv3 = conv1x1(width, planes * self.expansion)
-        self.bn3 = norm_layer(planes * self.expansion)
+        self.bn3 = norm_layer(planes * self.expansion, track_running_stats=False)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
@@ -107,18 +107,24 @@ class Bottleneck(nn.Module):
         return out
 
 
-class ResNetCifar10(nn.Module):
+class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None):
-        super(ResNetCifar10, self).__init__()
+                 norm_layer=None, **kwargs):
+        super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
 
         self.inplanes = 64
         self.dilation = 1
+
+        if 'features' in kwargs:
+            self.output_feature_map = kwargs['features']
+        else:
+            self.output_feature_map = False
+
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
@@ -130,7 +136,7 @@ class ResNetCifar10(nn.Module):
         self.base_width = width_per_group
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
                                bias=False)
-        self.bn1 = norm_layer(self.inplanes)
+        self.bn1 = norm_layer(self.inplanes, track_running_stats=False)
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
@@ -140,7 +146,7 @@ class ResNetCifar10(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.classifier = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -169,7 +175,7 @@ class ResNetCifar10(nn.Module):
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
                 conv1x1(self.inplanes, planes * block.expansion, stride),
-                norm_layer(planes * block.expansion),
+                norm_layer(planes * block.expansion, track_running_stats=False),
             )
 
         layers = []
@@ -195,28 +201,19 @@ class ResNetCifar10(nn.Module):
         x = self.layer4(x)
 
         x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.fc(x)
+        features = torch.flatten(x, 1)
+        logit = self.classifier(features)
 
-        return x
+        if self.output_feature_map:
+            return logit, features
+        else:
+            return logit
 
     def forward(self, x):
         return self._forward_impl(x)
 
-    def feature_maps(self, x):
-        with torch.no_grad():
-            x = self.conv1(x)
-            x = self.bn1(x)
-            x = self.relu(x)
 
-            x = self.layer1(x)
-            x = self.layer2(x)
-            x = self.layer3(x)
-            x = self.layer4(x)
-        return x
-
-
-def ResNet18_cifar10(**kwargs):
+def ResNet18(**kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -224,10 +221,10 @@ def ResNet18_cifar10(**kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return ResNetCifar10(BasicBlock, [2, 2, 2, 2], **kwargs)
+    return ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
 
 
-def ResNet50_cifar10(**kwargs):
+def ResNet50(**kwargs):
     r"""ResNet-50 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
 
@@ -235,4 +232,4 @@ def ResNet50_cifar10(**kwargs):
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return ResNetCifar10(Bottleneck, [3, 4, 6, 3], **kwargs)
+    return ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)

@@ -14,11 +14,14 @@ class SimpleCNN(Module):
             ReLU(),
             MaxPool2d((2, 2))
         )
-        self.fc_1 = Linear(16 * 5 * 5, 120)
-        self.fc_2 = Linear(120, 84)
-        self.logit = Linear(84, num_classes)
 
-        self.fc_list = [self.fc_1, self.fc_2]
+        self.classifier = Linear(16 * 5 * 5, 120)
+        self.logit = Linear(120, num_classes)
+        # self.classifier = Sequential(
+        #     Linear(16 * 5 * 5, 120),
+        #     ReLU(inplace=True),
+        #     Linear(120, num_classes)
+        # )
 
         if 'features' in kwargs:
             self.output_feature_map = kwargs['features']
@@ -28,11 +31,40 @@ class SimpleCNN(Module):
     def forward(self, x):
         x = self.features(x)
         features = torch.flatten(x, 1)
+        fc = F.relu(self.classifier(features), inplace=True)
+        logit = self.logit(fc)
 
-        for i, layer in enumerate(self.fc_list):
-            features = F.relu(layer(features), inplace=True)
+        if self.output_feature_map:
+            return logit, features
+        else:
+            return logit
 
-        logit = self.logit(features)
+
+class ConvNet(Module):
+    def __init__(self, num_classes: int = 10, **kwargs):
+        super(ConvNet, self).__init__()
+
+        self.features = Sequential(
+            Conv2d(3, 64, (3, 3), padding=1),
+            ReLU(),
+            Conv2d(64, 64, (3, 3), padding=1),
+            ReLU(),
+            Conv2d(64, 128, (3, 3), padding=1),
+            ReLU(),
+            MaxPool2d((2, 2), padding=1)
+        )
+
+        self.classifier = Linear(128 * 17 * 17, num_classes)
+
+        if 'features' in kwargs:
+            self.output_feature_map = kwargs['features']
+        else:
+            self.output_feature_map = False
+
+    def forward(self, x):
+        x = self.features(x)
+        features = torch.flatten(x, 1)
+        logit = self.classifier(features)
 
         if self.output_feature_map:
             return logit, features
