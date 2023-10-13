@@ -20,11 +20,6 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
     model.load_state_dict(client.model)
     model = model.to(device)
 
-    # model_g = model_call(training_settings['model'], num_of_classes, features=False)
-    # model_g.load_state_dict(client.model)
-    # model_g = model_g.to(device)
-    # model_g.eval()
-
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
 
@@ -64,20 +59,6 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
         client.epoch_counter += 1
         training_acc, training_losses = F.compute_accuracy(model, client.train_loader, loss_fn)
         test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn)
-
-        # cos_similarity = torch.nn.CosineSimilarity(dim=-1)
-        # model_state = model.state_dict()
-        # model_g_state = model_g.state_dict()
-
-        # for key, value in model_state.items():
-        #     if "weight" in key:
-        #         flatten_model = value.view(-1)
-        #         flatten_g_model = model_g_state[key].view(-1)
-        #         similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
-        #         torch.nan_to_num_(similarity)
-        #
-        #         # client.similarities[key] = similarity.numpy()
-        #         summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
         # INFO - Epoch summary
         summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
@@ -342,8 +323,6 @@ def run(client_setting: dict, training_setting: dict):
 
             stream_logger.debug("[*] Weight Updates")
             clients = F.update_client_dict(clients, trained_clients)
-
-            # F.draw_layer_similarity(clients, aggregator.summary_path, aggregator.global_iter)
 
             end_time_global_iter = time.time()
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})

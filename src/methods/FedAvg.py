@@ -23,10 +23,6 @@ def train(
     model.load_state_dict(client.model)
     model = model.to(device)
 
-    # model_g = model_call(training_settings['model'], num_of_classes)
-    # model_g.load_state_dict(client.model)
-    # model_g = model_g.to(device)
-
     # INFO - Optimizer
     optimizer = call_optimizer(training_settings['optim'])
 
@@ -67,22 +63,6 @@ def train(
 
             client.step_counter += 1
             summary_counter += 1
-
-        # # INFO - CoS similarity of evaluation.
-        # cos_similarity = torch.nn.CosineSimilarity(dim=-1)
-        #
-        # model_state = model.state_dict()
-        # model_g_state = model_g.state_dict()
-
-        # for key, value in model_state.items():
-        #     if "weight" in key:
-        #         flatten_model = value.view(-1)
-        #         flatten_g_model = model_g_state[key].view(-1)
-        #         similarity = cos_similarity(flatten_model.cpu(), flatten_g_model.cpu())
-        #         torch.nan_to_num_(similarity)
-        #
-        #         client.similarities[key] = similarity.numpy()
-        #         summary_writer.add_histogram("{}/cos_sim".format(key), similarity, len(client.global_iter))
 
         # INFO - Epoch summary
         test_acc, test_loss = F.compute_accuracy(model, client.test_loader, loss_fn)
@@ -131,13 +111,9 @@ def local_training(clients: list,
     return trained_result
 
 
-def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, model_save: bool = False):
+def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float):
     total_len = 0
     empty_model = OrderedDict()
-
-    # NOTE: This is temporal code for evaluation
-    # csvfile = open(os.path.join(aggregator.summary_path, "accuracy_per_class.csv"), "a", newline='')
-    # csv_writer = csv.writer(csvfile)
 
     for client in clients:
         total_len += client.data_len()
@@ -160,13 +136,6 @@ def fed_avg(clients: List[Client], aggregator: Aggregator, global_lr: float, mod
     if aggregator.test_accuracy > aggregator.best_acc:
         aggregator.best_acc = aggregator.test_accuracy
 
-    # NOTE: This is temporal code for evaluation
-    # aggregator.test_accuracy, accuracy_per_class = aggregator.compute_accuracy()
-    # csv_writer.writerow(accuracy_per_class.numpy())
-    # csvfile.close()
-    if model_save:
-        aggregator.save_model()
-
 
 def run(client_setting: dict, training_setting: dict):
     stream_logger, _ = get_logger(LOGGER_DICT['stream'])
@@ -182,8 +151,6 @@ def run(client_setting: dict, training_setting: dict):
         aggregator: type(AggregationBalancer) = AggregationBalancer
     else:
         aggregator = Aggregator
-        # NOTE: This is temporal code for evaluation
-        # aggregator = AggregationBalancer
 
     clients, aggregator = client_initialize(client, aggregator,
                                             fed_dataset, test_loader, valid_loader,
@@ -258,8 +225,6 @@ def run(client_setting: dict, training_setting: dict):
 
             stream_logger.debug("[*] Weight Updates")
             clients = F.update_client_dict(clients, trained_clients)
-
-            # F.draw_layer_similarity(clients, aggregator.summary_path, aggregator.global_iter)
 
             end_time_global_iter = time.time()
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})
