@@ -4,7 +4,7 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg, FedKL, FedConst, Fedprox, Scaffold, MOON, FedBalancer, FedNova
+from src.methods import FedAvg, FedKL, FedConst, FedProx, Scaffold, MOON, FedBalancer, FedNova, FedDyn
 
 import argparse
 import os
@@ -120,7 +120,8 @@ if __name__ == '__main__':
         'sigma': args.sigma,
         'balancer': args.balancer,
         'lr_decay': 'manual',
-        'inverse': args.inverse
+        'inverse': args.inverse,
+        'dyn_alpha': 0.1
     }
 
     write_experiment_summary("Client Setting", client_settings)
@@ -137,13 +138,15 @@ if __name__ == '__main__':
         elif 'fedbal' in args.method.lower():
             FedBalancer.run(client_settings, train_settings)
         elif 'fedprox' in args.method.lower():
-            Fedprox.run(client_settings, train_settings)
+            FedProx.run(client_settings, train_settings)
         elif 'scaffold' in args.method.lower():
             Scaffold.run(client_settings, train_settings)
         elif 'fednova' in args.method.lower():
             FedNova.run(client_settings, train_settings)
         elif 'moon' in args.method.lower():
             MOON.run(client_settings, train_settings)
+        elif 'feddyn' in args.method.lower():
+            FedDyn.run(client_settings, train_settings)
         else:
             raise NotImplementedError("\'{}\' is not implemented method.".format(args.method))
 
