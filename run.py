@@ -4,7 +4,8 @@ from conf.logger_config import STREAM_LOG_LEVEL, SUMMARY_LOG_LEVEL, SYSTEM_LOG_L
 from torch import cuda
 from distutils.util import strtobool
 from datetime import datetime
-from src.methods import FedAvg, FedKL, FedConst, FedProx, Scaffold, MOON, FedBalancer, FedNova, FedDyn
+from src.methods import FedAvg, FedBalancer, FedConst, FedDyn, FedKL, FedNova, FedProx, Scaffold, MOON
+
 
 import argparse
 import os
@@ -22,6 +23,7 @@ if __name__ == '__main__':
 
     # Training Settings
     parser.add_argument('--method', type=str, required=True)
+    parser.add_argument('--aggregator', type=str, default='FedAvg')
     parser.add_argument('--exp_name', type=str, required=True)
 
     # INFO: Optional Settings
@@ -101,7 +103,7 @@ if __name__ == '__main__':
 
     # INFO: Training settings
     train_settings = {
-        'scheme': args.method,
+        'method': args.method,
         'model': args.model,
         'optim': args.opt,
         'global_lr': args.global_lr,
@@ -118,10 +120,11 @@ if __name__ == '__main__':
         'weight_decay': args.weight_decay,
         'mu': args.mu,
         'sigma': args.sigma,
-        'balancer': args.balancer,
+        # 'balancer': args.balancer,
+        'aggregator': args.aggregator,
         'lr_decay': 'manual',
         'inverse': args.inverse,
-        'dyn_alpha': 0.1
+        'dyn_alpha': 0.1,
     }
 
     write_experiment_summary("Client Setting", client_settings)
@@ -134,19 +137,23 @@ if __name__ == '__main__':
         # INFO: Run Function
         # TODO: Make additional Federated method
         if 'fedavg' in args.method.lower():
-            FedAvg.run(client_settings, train_settings)
+            FedAvg.run_fedavg(client_settings, train_settings)
         elif 'fedbal' in args.method.lower():
-            FedBalancer.run(client_settings, train_settings)
+            FedBalancer.run_fedbal(client_settings, train_settings)
+        elif 'fedconst' in args.method.lower():
+            FedConst.run_fedconst(client_settings, train_settings)
+        # elif 'fedkl' in args.method.lower():
+        #     FedKL.run_fedkl(client_settings, train_settings)
         elif 'fedprox' in args.method.lower():
-            FedProx.run(client_settings, train_settings)
+            FedProx.run_fedprox(client_settings, train_settings)
         elif 'scaffold' in args.method.lower():
-            Scaffold.run(client_settings, train_settings)
+            Scaffold.run_scaffold(client_settings, train_settings)
         elif 'fednova' in args.method.lower():
-            FedNova.run(client_settings, train_settings)
+            FedNova.run_fednova(client_settings, train_settings)
         elif 'moon' in args.method.lower():
-            MOON.run(client_settings, train_settings)
+            MOON.run_moon(client_settings, train_settings)
         elif 'feddyn' in args.method.lower():
-            FedDyn.run(client_settings, train_settings)
+            FedDyn.run_feddyn(client_settings, train_settings)
         else:
             raise NotImplementedError("\'{}\' is not implemented method.".format(args.method))
 
