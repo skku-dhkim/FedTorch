@@ -163,7 +163,6 @@ class AvgAggregator(Aggregator):
         self.global_iter += 1
 
 
-# TODO: Aggregation balancer doesn't need any more. Check for deprecation.
 class AggregationBalancer(Aggregator):
     def __init__(self,
                  test_data: DataLoader,
