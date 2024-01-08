@@ -158,6 +158,9 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                 summary_logger.info("Best Test Accuracy: {}".format(aggregator.best_acc))
 
             accuracy_marker.append(aggregator.test_accuracy)
+            aggregator.measure_model_norm(measure_type='features')
+            aggregator.measure_model_norm(measure_type='classifier')
+            aggregator.measure_model_norm(measure_type='all')
 
         accuracy_marker = np.array(accuracy_marker)
         np.savetxt(os.path.join(aggregator.summary_path, "Test_accuracy.csv"), accuracy_marker, delimiter=',')

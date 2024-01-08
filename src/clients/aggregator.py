@@ -133,6 +133,23 @@ class Aggregator:
             self.summary_writer.add_scalar("weight_similarity_after/{}".format(k), score, self.global_iter)
         return result
 
+    def measure_model_norm(self, measure_type):
+        if measure_type == 'features':
+            params = self.model.features.parameters()
+            vec = torch.cat([p.detach().view(-1) for p in params])
+            l2_norm = torch.norm(vec, 2)
+            self.summary_writer.add_scalar("weight norm/features", l2_norm, self.global_iter)
+        elif measure_type == 'classifier':
+            params = self.model.classifier.parameters()
+            vec = torch.cat([p.detach().view(-1) for p in params])
+            l2_norm = torch.norm(vec, 2)
+            self.summary_writer.add_scalar("weight norm/classifier", l2_norm, self.global_iter)
+        else:
+            params = self.model.parameters()
+            vec = torch.cat([p.detach().view(-1) for p in params])
+            l2_norm = torch.norm(vec, 2)
+            self.summary_writer.add_scalar("weight norm/all", l2_norm, self.global_iter)
+
 
 class AvgAggregator(Aggregator):
     def __init__(self,
