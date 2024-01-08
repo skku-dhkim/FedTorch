@@ -1,4 +1,4 @@
-from .data_loader import FedCifar, FedMNIST
+from .data_loader import FedCifar, FedMNIST, FedOrganAMNIST, FedBloodMNIST
 
 
 def dataset_call(name: str, log_path: str, **kwargs):
@@ -6,6 +6,10 @@ def dataset_call(name: str, log_path: str, **kwargs):
         dataset_object = FedMNIST(log_path)
     elif 'cifar' in name.lower():
         dataset_object = FedCifar(log_path, mode=name.lower(), **kwargs)
+    elif 'organamnist' in name.lower():
+        dataset_object = FedOrganAMNIST(log_path, mode=name.lower(), **kwargs)
+    elif 'bloodmnist' in name.lower():
+        dataset_object = FedBloodMNIST(log_path, mode=name.lower(), **kwargs)
     else:
         return NotImplementedError
     return dataset_object.load(kwargs['num_of_clients'], dirichlet_alpha=kwargs['dirichlet_alpha'])

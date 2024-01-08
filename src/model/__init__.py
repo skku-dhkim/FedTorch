@@ -27,9 +27,11 @@ def model_call(model_name: str, num_of_classes: int, **kwargs):
 
 
 NUMBER_OF_CLASSES = {
-        'cifar-10': 10,
-        'cifar-100': 100,
-        'mnist': 10
+    'cifar-10': 10,
+    'cifar-100': 100,
+    'mnist': 10,
+    'organamnist': 11,
+    'bloodmnist': 8
 }
 
 __all__ = [

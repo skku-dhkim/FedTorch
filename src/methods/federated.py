@@ -55,9 +55,14 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
     # INFO - Client initialization
     if training_setting['aggregator'].lower() == 'balancer':
         _aggregator: type(AggregationBalancer) = AggregationBalancer
-        client = FedBalancerClient
+        # client = FedBalancerClient
     else:
         _aggregator = AvgAggregator
+        # client = Client
+
+    if 'fedbal' in training_setting['method'].lower():
+        client = FedBalancerClient
+    else:
         client = Client
 
     clients, aggregator = client_initialize(client, _aggregator,

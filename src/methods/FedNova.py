@@ -172,7 +172,7 @@ def train(client: Client, training_settings: dict, num_of_classes: int):
     csv_writer = csv.writer(csvfile)
 
     # INFO - Call the model architecture and set parameters.
-    model = model_call(training_settings['model'], num_of_classes, features=False)
+    model = model_call(training_settings['model'], num_of_classes, features=False, data_type=client.data_type)
     model.load_state_dict(client.model)
     model = model.to(device)
 
