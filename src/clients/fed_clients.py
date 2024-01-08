@@ -23,6 +23,7 @@ class Client:
         self.test = data['test']
         self.test_loader = DataLoader(self.test,
                                       batch_size=batch_size, shuffle=False, drop_last=False)
+        self.data_type = data['data_type']
 
         # Training settings
         self.global_iter = []

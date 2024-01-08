@@ -18,11 +18,11 @@ def train(
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
 
     # INFO - Call the model architecture and set parameters.
-    model = model_call(training_settings['model'], num_of_classes)
+    model = model_call(training_settings['model'], num_of_classes, data_type=client.data_type)
     model.load_state_dict(client.model)
     model = model.to(device)
 
-    model_g = model_call(training_settings['model'], num_of_classes)
+    model_g = model_call(training_settings['model'], num_of_classes, data_type=client.data_type)
     model_g.load_state_dict(client.model)
     model_g = model_g.to(device)
 
