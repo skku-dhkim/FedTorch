@@ -14,14 +14,20 @@ class SimpleCNN(Module):
             MaxPool2d((2, 2))
         )
 
-        if 'data_type' in kwargs.keys():
-            if 'mnist' in kwargs['data_type']:
-                # NOTE: If data is mnist type.
-                self.classifier = Linear(16 * 4 * 4, 120)
+        if 'data_type' in kwargs.keys() and 'mnist' in kwargs['data_type']:
+            # if 'mnist' in kwargs['data_type']:
+            # NOTE: If data is mnist type.
+            self.classifier = Sequential(
+                Linear(16 * 4 * 4, 120),
+                ReLU(inplace=True),
+                Linear(120, num_classes))
         else:
-            self.classifier = Linear(16 * 5 * 5, 120)
+            self.classifier = Sequential(
+                Linear(16 * 5 * 5, 120),
+                ReLU(inplace=True),
+                Linear(120, num_classes))
 
-        self.logit = Linear(120, num_classes)
+        # self.logit = Linear(120, num_classes)
         # self.classifier = Sequential(
         #     Linear(16 * 5 * 5, 120),
         #     ReLU(inplace=True),
@@ -36,8 +42,9 @@ class SimpleCNN(Module):
     def forward(self, x):
         x = self.features(x)
         features = torch.flatten(x, 1)
-        fc = F.relu(self.classifier(features), inplace=True)
-        logit = self.logit(fc)
+        # fc = F.relu(self.classifier(features), inplace=True)
+        # logit = self.logit(fc)
+        logit = self.classifier(features)
 
         if self.output_feature_map:
             return logit, features
