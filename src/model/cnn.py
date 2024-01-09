@@ -66,10 +66,9 @@ class ConvNet(Module):
             MaxPool2d((2, 2), padding=1)
         )
 
-        if 'data_type' in kwargs.keys():
-            if 'mnist' in kwargs['data_type']:
-                # NOTE: If data is mnist type.
-                self.classifier = Linear(128 * 15 * 15, num_classes)
+        if 'data_type' in kwargs.keys() and 'mnist' in kwargs['data_type']:
+            # NOTE: If data is mnist type.
+            self.classifier = Linear(128 * 15 * 15, num_classes)
         else:
             self.classifier = Linear(128 * 17 * 17, num_classes)
 
