@@ -30,6 +30,11 @@ class Aggregator:
         self.model: Module = model_call(train_settings['model'],
                                         NUMBER_OF_CLASSES[dataset_name],
                                         data_type=dataset_name.lower())
+        self.client_model: Module = model_call(train_settings['model'],
+                                               NUMBER_OF_CLASSES[dataset_name],
+                                               data_type=dataset_name.lower())
+
+        self.df_norm_diff = None
 
         main_dir = Path(log_path).parent.absolute()
         root_dir = Path("./logs").absolute()
@@ -133,22 +138,57 @@ class Aggregator:
             self.summary_writer.add_scalar("weight_similarity_after/{}".format(k), score, self.global_iter)
         return result
 
-    def measure_model_norm(self, measure_type):
+    def measure_model_norm(self, measure_type, model=None):
+        if model is None:
+            model = self.model
+
         if measure_type == 'features':
-            params = self.model.features.parameters()
-            vec = torch.cat([p.detach().view(-1) for p in params])
-            l2_norm = torch.norm(vec, 2)
-            self.summary_writer.add_scalar("weight norm/features", l2_norm, self.global_iter)
+            params = model.features.parameters()
         elif measure_type == 'classifier':
-            params = self.model.classifier.parameters()
-            vec = torch.cat([p.detach().view(-1) for p in params])
-            l2_norm = torch.norm(vec, 2)
-            self.summary_writer.add_scalar("weight norm/classifier", l2_norm, self.global_iter)
+            params = model.classifier.parameters()
         else:
-            params = self.model.parameters()
-            vec = torch.cat([p.detach().view(-1) for p in params])
-            l2_norm = torch.norm(vec, 2)
-            self.summary_writer.add_scalar("weight norm/all", l2_norm, self.global_iter)
+            params = model.parameters()
+
+        vec = torch.cat([p.detach().view(-1) for p in params])
+        l2_norm = torch.norm(vec, 2)
+        return l2_norm
+
+    def gradient_changes(self, previous_model, client_model):
+        return previous_model - client_model
+
+    def mark_model_diff(self, clients):
+        # prev_model_norm_cls = self.measure_model_norm("classifier")
+        # prev_model_norm_feat = self.measure_model_norm("features")
+        prev_model_norm_all = self.measure_model_norm("all")
+
+        if self.df_norm_diff is None:
+            column_name = [str(client.name) for client in clients]
+            self.df_norm_diff = pd.DataFrame(columns=column_name)
+
+        tmp_dict = {}
+        for client in clients:
+            self.client_model.load_state_dict(client.model)
+            # client_model_norm = self.measure_model_norm("classifier", model=self.client_model)
+            # changes = self.gradient_changes(prev_model_norm_cls, client_model_norm)
+            # self.summary_writer.add_scalar("weight norm/{}/{}".format(client.name, "classifier"),
+            #                                changes,
+            #                                self.global_iter)
+            #
+            # client_model_norm = self.measure_model_norm("features", model=self.client_model)
+            # changes = self.gradient_changes(prev_model_norm_feat, client_model_norm)
+            # self.summary_writer.add_scalar("weight norm/{}/{}".format(client.name, "features"),
+            #                                changes,
+            #                                self.global_iter)
+
+            client_model_norm = self.measure_model_norm("all", model=self.client_model)
+            changes = self.gradient_changes(prev_model_norm_all, client_model_norm)
+            self.summary_writer.add_scalar("weight norm/{}/{}".format(client.name, "all"),
+                                           changes,
+                                           self.global_iter)
+            tmp_dict[str(client.name)] = changes.item()
+
+        new_row = pd.DataFrame(tmp_dict, index=[0])
+        self.df_norm_diff = pd.concat([self.df_norm_diff, new_row], ignore_index=True)
 
 
 class AvgAggregator(Aggregator):
@@ -162,7 +202,7 @@ class AvgAggregator(Aggregator):
 
         super().__init__(test_data, valid_data, dataset_name, log_path, train_settings, **kwargs)
         self.test_accuracy = self.compute_accuracy()
-        self.name = 'Average Aggregator'
+        # self.name = 'Average Aggregator'
 
     def fed_avg(self, clients: List[Client], global_lr: float, mode='fedavg'):
         empty_model = OrderedDict()
@@ -176,6 +216,8 @@ class AvgAggregator(Aggregator):
                     p = 1 / len(clients)
 
                 empty_model[k] = empty_model.get(k, 0) + client.model[k] * p * global_lr
+
+        self.mark_model_diff(clients)
 
         # Global model updates
         self.set_parameters(empty_model)
@@ -193,6 +235,7 @@ class AggregationBalancer(Aggregator):
 
         super().__init__(test_data, valid_data, dataset_name, log_path, train_settings, **kwargs)
         self.test_accuracy = self.compute_accuracy()
+        self.importance_score = []
 
     def aggregation_balancer(self,
                              clients: List[Client],
@@ -224,13 +267,13 @@ class AggregationBalancer(Aggregator):
                 # NOTE: Averaging the Feature extractor and others.
                 empty_model[name] = torch.mean(v, 0) * global_lr
 
+        self.mark_model_diff(clients)
+
         # NOTE: Global model updates
         self.set_parameters(empty_model, strict=True)
         self.global_iter += 1
-
-        # self.test_accuracy = self.compute_accuracy()
-        # self.summary_writer.add_scalar('global_test_acc', self.test_accuracy, self.global_iter)
         self.summary_writer.add_histogram('aggregation_score', importance_score, self.global_iter)
+        self.importance_score.append(importance_score.numpy())
 
     def client_importance_score(self, vector, method, global_model, normalize: bool = True, sigma=3, temperature=1.0,
                                 inverse=True):

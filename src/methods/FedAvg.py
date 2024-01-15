@@ -69,8 +69,8 @@ def train(
         test_acc, test_loss = F.compute_accuracy(model, client.test_loader, loss_fn)
         train_acc, train_loss = F.compute_accuracy(model, client.train_loader, loss_fn)
 
-        summary_writer.add_scalar('epoch_acc/local_train', train_acc, client.epoch_counter)
-        summary_writer.add_scalar('epoch_acc/local_test', test_acc, client.epoch_counter)
+        summary_writer.add_scalar('epoch_acc/train', train_acc, client.epoch_counter)
+        summary_writer.add_scalar('epoch_acc/test', test_acc, client.epoch_counter)
 
         summary_writer.add_scalar('loss/train', train_loss, client.epoch_counter)
         summary_writer.add_scalar('loss/test', test_loss, client.epoch_counter)

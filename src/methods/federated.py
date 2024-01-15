@@ -85,8 +85,8 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
             total_g_epochs = training_setting['global_epochs']
             lr_decay = True
 
-        # best_accuracy = aggregator.best_acc
         accuracy_marker = []
+        norm_marker = []
 
         for gr in pbar:
             start_time_global_iter = time.time()
@@ -111,7 +111,7 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                     training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
                 elif 'manual' in training_setting['lr_decay'].lower():
                     if aggregator.global_iter in [total_g_epochs // 4, (total_g_epochs * 3) // 8]:
-                        training_setting['local_lr'] *= 0.1
+                        training_setting['local_lr'] *= 0.05
                 else:
                     raise NotImplementedError("Learning rate decay \'{}\' is not implemented yet.".format(
                         training_setting['lr_decay']))
@@ -158,12 +158,28 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                 summary_logger.info("Best Test Accuracy: {}".format(aggregator.best_acc))
 
             accuracy_marker.append(aggregator.test_accuracy)
-            aggregator.measure_model_norm(measure_type='features')
-            aggregator.measure_model_norm(measure_type='classifier')
-            aggregator.measure_model_norm(measure_type='all')
+            # aggregator.summary_writer.add_scalar("weight norm/{}/features".format(aggregator.name),
+            #                                      aggregator.measure_model_norm(measure_type='features'),
+            #                                      aggregator.global_iter)
+            #
+            # aggregator.summary_writer.add_scalar("weight norm/{}/classifier".format(aggregator.name),
+            #                                      aggregator.measure_model_norm(measure_type='classifier'),
+            #                                      aggregator.global_iter)
+            global_model_norm = aggregator.measure_model_norm(measure_type='all')
+            aggregator.summary_writer.add_scalar("weight norm/{}/all".format(aggregator.name),
+                                                 global_model_norm,
+                                                 aggregator.global_iter)
+            norm_marker.append(global_model_norm.item())
 
         accuracy_marker = np.array(accuracy_marker)
-        np.savetxt(os.path.join(aggregator.summary_path, "Test_accuracy.csv"), accuracy_marker, delimiter=',')
+        np.savetxt(os.path.join(aggregator.summary_path, "Test_Accuracy.csv"), accuracy_marker, delimiter=',')
+        aggregator.df_norm_diff = aggregator.df_norm_diff[sorted(aggregator.df_norm_diff.columns)]
+        aggregator.df_norm_diff['global_model'] = norm_marker
+        aggregator.df_norm_diff.to_csv(os.path.join(aggregator.summary_path, "Model_Norm.csv"), index=False)
+
+        if aggregator_mode == 'balancer':
+            importance_marker = np.array(aggregator.importance_score)
+            np.savetxt(os.path.join(aggregator.summary_path, "Importance_Score.csv"), importance_marker, delimiter=',')
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
         system_logger, _ = get_logger(LOGGER_DICT['system'])

@@ -61,9 +61,10 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
         test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn)
 
         # INFO - Epoch summary
-        summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
+        summary_writer.add_scalar('epoch_acc/train', training_acc, client.epoch_counter)
+        summary_writer.add_scalar('epoch_acc/test', test_acc, client.epoch_counter)
+
         summary_writer.add_scalar('loss/train', training_losses, client.epoch_counter)
-        summary_writer.add_scalar('acc/test', test_acc, client.epoch_counter)
         summary_writer.add_scalar('loss/test', test_losses, client.epoch_counter)
 
         client.epoch_counter += 1
