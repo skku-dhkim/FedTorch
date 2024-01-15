@@ -20,8 +20,8 @@ gpu=True
 gpu_frac=0.12
 sigma=3
 inverse=True
-local_iter=1
-global_iter=2
+local_iter=10
+global_iter=150
 
 methods=("FedAvg" "FedProx" "FedNova" "FedDyn" "FedBal" )
 
