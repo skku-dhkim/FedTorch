@@ -11,41 +11,37 @@ interrupt_handler() {
 trap interrupt_handler SIGINT
 
 cpus=4
-n_clients=20
-sample_ratio=0.2
+n_clients=10
+sample_ratio=1.0
 dirichlet_alpha=0.1
 model="ConvNet"
 dataset="Cifar-10"
 gpu=True
 gpu_frac=0.12
 sigma=3
+inverse=True
+local_iter=1
+global_iter=2
 
-local_iter=10
-global_iter=130
+methods=("FedAvg" "FedProx" "FedNova" "FedDyn" "FedBal" )
 
-#methods=("FedAvg" "FedProx" "Scaffold" "FedNova" "FedBal" )
-#
-#for method in "${methods[@]}"
-#do
-#  balancer=False
-#  exp_name="$1/${method}_${balancer}"
-#  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma
-#
-#  balancer=True
-#  exp_name="$1/${method}_${balancer}"
-#  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma
-#done
+for method in "${methods[@]}"
+do
+  aggregator="fedavg"
+  exp_name="$1/${method}_${aggregator}"
+  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus
+done
 
-method="FedBal"
-balancer=True
-inverse=False
-exp_name="$1/${method}_INV_${balancer}"
-python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus
+for method in "${methods[@]}"
+do
+  aggregator="uniform"
+  exp_name="$1/${method}_${aggregator}"
+  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus
+done
 
-#
-#balancer=False
-#for method in "${methods[@]}"
-#do
-#  exp_name="$1/${method}_${balancer}"
-#  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --balancer $balancer --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio
-#done
+for method in "${methods[@]}"
+do
+  aggregator="balancer"
+  exp_name="$1/${method}_${aggregator}"
+  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus
+done
