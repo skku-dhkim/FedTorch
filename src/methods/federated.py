@@ -110,8 +110,13 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                                 1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
                     training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
                 elif 'manual' in training_setting['lr_decay'].lower():
-                    if aggregator.global_iter in [total_g_epochs // 4, (total_g_epochs * 3) // 8]:
-                        training_setting['local_lr'] *= 0.05
+                    schedule = [total_g_epochs // 4,
+                                (total_g_epochs * 3) // 8,
+                                (total_g_epochs * 9) // 16,
+                                (total_g_epochs * 27) // 32,
+                                (total_g_epochs * 81) // 90]
+                    if aggregator.global_iter in schedule:
+                        training_setting['local_lr'] *= 0.5
                 else:
                     raise NotImplementedError("Learning rate decay \'{}\' is not implemented yet.".format(
                         training_setting['lr_decay']))
