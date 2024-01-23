@@ -279,6 +279,7 @@ class AggregationBalancer(Aggregator):
                                 inverse=True):
         weight_vec = vector.view(vector.size()[0], -1)
 
+        # TODO: Consider to deprecate
         if method == 'euclidean'.lower():
             g_vector = global_model.view(global_model.size()[0], -1).unsqueeze(0)
             # NOTE: Lower the distance less changes from global
@@ -307,10 +308,11 @@ class AggregationBalancer(Aggregator):
             similarity = cos_similarity(g_vector, weight_vec)
             torch.nan_to_num_(similarity)
 
-            # NOTE: Clipping the value if lower than threshold
-            std, mean = torch.std_mean(similarity, dim=-1)
-            threshold = mean - sigma * std
-            similarity[similarity < threshold] = threshold
+            # TODO: Consider to deprecate
+            # # NOTE: Clipping the value if lower than threshold
+            # std, mean = torch.std_mean(similarity, dim=-1)
+            # threshold = mean - sigma * std
+            # similarity[similarity < threshold] = threshold
 
             # NOTE: Projection
             if inverse:

@@ -111,10 +111,9 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                     training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
                 elif 'manual' in training_setting['lr_decay'].lower():
                     schedule = [total_g_epochs // 4,
-                                (total_g_epochs * 3) // 8,
-                                (total_g_epochs * 9) // 16,
-                                (total_g_epochs * 27) // 32,
-                                (total_g_epochs * 81) // 90]
+                                total_g_epochs // 2,
+                                total_g_epochs * 3 // 4
+                                ]
                     if aggregator.global_iter in schedule:
                         training_setting['local_lr'] *= 0.5
                 else:
