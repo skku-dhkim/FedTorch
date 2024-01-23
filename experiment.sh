@@ -18,30 +18,22 @@ model="ConvNet"
 dataset="Cifar-10"
 gpu=True
 gpu_frac=0.12
-sigma=3
 inverse=True
 local_iter=10
 global_iter=150
+T=0.5
+
 
 methods=("FedAvg" "FedProx" "FedNova" "FedDyn" "FedBal" )
 
 for method in "${methods[@]}"
 do
-  aggregator="fedavg"
-  exp_name="$1/${method}_${aggregator}"
-  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus
+  aggregator="FedAvg"
+  exp_name="$1/${method}_${aggregator}_${dirichlet_alpha}"
+  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus --T $T
+
+  aggregator="Balancer"
+  exp_name="$1/${method}_${aggregator}_${dirichlet_alpha}"
+  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus --T $T
 done
 
-for method in "${methods[@]}"
-do
-  aggregator="uniform"
-  exp_name="$1/${method}_${aggregator}"
-  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus
-done
-
-for method in "${methods[@]}"
-do
-  aggregator="balancer"
-  exp_name="$1/${method}_${aggregator}"
-  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --sigma $sigma --inverse $inverse --cpus $cpus
-done
