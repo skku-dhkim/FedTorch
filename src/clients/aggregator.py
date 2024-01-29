@@ -157,6 +157,7 @@ class Aggregator:
         return previous_model - client_model
 
     def mark_model_diff(self, clients):
+        # TODO: Deprecate in the future
         # prev_model_norm_cls = self.measure_model_norm("classifier")
         # prev_model_norm_feat = self.measure_model_norm("features")
         prev_model_norm_all = self.measure_model_norm("all")
@@ -168,6 +169,7 @@ class Aggregator:
         tmp_dict = {}
         for client in clients:
             self.client_model.load_state_dict(client.model)
+            # TODO: Deprecate in the future
             # client_model_norm = self.measure_model_norm("classifier", model=self.client_model)
             # changes = self.gradient_changes(prev_model_norm_cls, client_model_norm)
             # self.summary_writer.add_scalar("weight norm/{}/{}".format(client.name, "classifier"),
@@ -307,12 +309,18 @@ class AggregationBalancer(Aggregator):
             weight_vec = weight_vec.cpu()
             similarity = cos_similarity(g_vector, weight_vec)
             torch.nan_to_num_(similarity)
+            similarity = torch.abs(similarity)
 
             # TODO: Consider to deprecate
-            # # NOTE: Clipping the value if lower than threshold
-            # std, mean = torch.std_mean(similarity, dim=-1)
+            # NOTE: Clipping the value if lower than threshold
+            std, mean = torch.std_mean(similarity, dim=-1)
             # threshold = mean - sigma * std
             # similarity[similarity < threshold] = threshold
+            # NOTE: Linear mapping
+            normalized_mean = mean/2
+            hat_T = (std/normalized_mean)+1e-7
+            T = torch.exp(-hat_T)
+            self.summary_writer.add_scalar('temperature', T, self.global_iter)
 
             # NOTE: Projection
             if inverse:
@@ -325,7 +333,8 @@ class AggregationBalancer(Aggregator):
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
         if normalize:
-            T = temperature
+            # TODO: Deprecate in the future
+            # T = temperature
             score_vector = torch.softmax(score_vector / T, dim=0)
         return score_vector
 
