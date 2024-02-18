@@ -26,7 +26,7 @@ def model_download(aggregator: Aggregator, clients: dict) -> None:
     model_weights = aggregator.get_parameters()
     for k, client in clients.items():
         client.model = model_weights
-
+    # return clients
 
 def model_collection(clients: dict, aggregator: Aggregator, with_data_len: bool = False) -> None:
     """
@@ -386,8 +386,6 @@ def mark_hessian(model: Module, data_loader: DataLoader, summary_writer: Summary
 
     summary_writer.add_scalar("max_hessian_eigen",max_eigval,epoch)
     summary_writer.add_scalar("hessian_trace",hessian_trace,epoch)
-
-
 
 
 #for cosine similarity check

@@ -120,9 +120,8 @@ if __name__ == '__main__':
         'weight_decay': args.weight_decay,
         'mu': args.mu,
         'sigma': args.sigma,
-        # 'balancer': args.balancer,
         'aggregator': args.aggregator,
-        'lr_decay': 'manual',
+        # 'lr_decay': 'manual',
         'inverse': args.inverse,
         'dyn_alpha': 0.1,
     }

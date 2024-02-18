@@ -5,6 +5,7 @@ from .utils import *
 from src.losses.loss import FeatureBalanceLoss
 from src.clients import FedBalancerClient
 from src.methods.federated import run
+from src.train.train_utils import compute_layer_norms
 
 
 @ray.remote(max_calls=1)
@@ -61,16 +62,21 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
         test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn)
 
         # INFO - Epoch summary
-        summary_writer.add_scalar('epoch_acc/train', training_acc, client.epoch_counter)
-        summary_writer.add_scalar('epoch_acc/test', test_acc, client.epoch_counter)
+        summary_writer.add_scalar('acc/local_train', training_acc, client.epoch_counter)
+        summary_writer.add_scalar('acc/local_test', test_acc, client.epoch_counter)
 
-        summary_writer.add_scalar('loss/train', training_losses, client.epoch_counter)
-        summary_writer.add_scalar('loss/test', test_losses, client.epoch_counter)
+        summary_writer.add_scalar('loss/local_train', training_losses, client.epoch_counter)
+        summary_writer.add_scalar('loss/local_test', test_losses, client.epoch_counter)
 
         client.epoch_counter += 1
 
     # INFO - Local model update
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
+
+    # INFO - For the Aggregation Balancer
+    if training_settings['aggregator'].lower() == 'balancer':
+        client.model_norm = compute_layer_norms(model)
+
     return client
 
 

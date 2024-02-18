@@ -5,6 +5,7 @@ from torch.optim.optimizer import Optimizer
 from . import *
 from .utils import *
 from src.methods.federated import run
+from src.train.train_utils import compute_layer_norms
 
 
 class FedNova(Optimizer):
@@ -168,8 +169,6 @@ def train(client: Client, training_settings: dict, num_of_classes: int):
     # device = torch.device('mps:0' if torch.backends.mps.is_available() else 'cpu')
 
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
-    csvfile = open(os.path.join(client.summary_path, "experiment_result.csv"), "a", newline='')
-    csv_writer = csv.writer(csvfile)
 
     # INFO - Call the model architecture and set parameters.
     model = model_call(training_settings['model'], num_of_classes, features=False, data_type=client.data_type)
@@ -214,16 +213,19 @@ def train(client: Client, training_settings: dict, num_of_classes: int):
         test_acc, test_losses = F.compute_accuracy(model, client.test_loader, loss_fn)
 
         # INFO - Epoch summary
-        summary_writer.add_scalar('acc/train', training_acc, client.epoch_counter)
-        summary_writer.add_scalar('loss/train', training_losses, client.epoch_counter)
-        summary_writer.add_scalar('acc/test', test_acc, client.epoch_counter)
-        summary_writer.add_scalar('loss/test', test_losses, client.epoch_counter)
+        summary_writer.add_scalar('acc/local_train', training_acc, client.epoch_counter)
+        summary_writer.add_scalar('acc/local_test', test_acc, client.epoch_counter)
 
-        csv_writer.writerow([training_acc, training_losses, test_acc, test_losses])
+        summary_writer.add_scalar('loss/local_train', training_losses, client.epoch_counter)
+        summary_writer.add_scalar('loss/local_test', test_losses, client.epoch_counter)
 
     # INFO - Local model update
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
-    csvfile.close()
+
+    # INFO - For the Aggregation Balancer
+    if training_settings['aggregator'].lower() == 'balancer':
+        client.model_norm = compute_layer_norms(model)
+
     return client
 
 
