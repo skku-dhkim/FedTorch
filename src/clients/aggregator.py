@@ -231,6 +231,8 @@ class AggregationBalancer(Aggregator):
         previous_g_model = self.model.state_dict()
         empty_model = OrderedDict((key, []) for key in self.model.state_dict().keys())
 
+        self.mark_model_diff(clients)
+
         # INFO: Normalize the model norm.
         server_norm = compute_layer_norms(self.model)
         minima_norm, alpha_range = self.find_min_and_max_norms(clients, server_norm)
@@ -270,8 +272,6 @@ class AggregationBalancer(Aggregator):
                     self.summary_writer.add_histogram('aggregation_score/{}'.format(name.split('.')[0]),
                                                       importance_score, self.global_iter+1)
 
-        self.mark_model_diff(clients)
-
         # NOTE: Global model updates
         self.set_parameters(empty_model, strict=True)
         self.global_iter += 1
@@ -296,7 +296,7 @@ class AggregationBalancer(Aggregator):
             for layer, norm in norms.items():
                 _min_candidate = min(min_norms.get(layer, float('inf')), norm)
                 max_norms[layer] = max(max_norms.get(layer, float('-inf')), norm)
-                if _min_candidate <= server_norms[layer]:
+                if _min_candidate <= server_norms[layer] and 'weight' in layer:
                     # Norm constrained should larger than global model
                     continue
                 min_norms[layer] = _min_candidate

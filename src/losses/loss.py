@@ -16,6 +16,6 @@ class FeatureBalanceLoss(nn.Module):
             device = "cpu"
         norm_vector = feature_map.view(feature_map.size()[0], -1)
         norm_vector = torch.norm(norm_vector, p=2, dim=-1).unsqueeze(1).to(device)
-        # alpha = pow((curr/self.total_local_epochs), 2)
+        alpha = pow((curr/self.total_local_epochs), 2)
         logit = out - (self.lambda_.to(device)/(norm_vector+1e-12))
         return torch.nn.functional.cross_entropy(logit, label)
