@@ -317,7 +317,7 @@ class AggregationBalancer(Aggregator):
         """
         for client in clients:
             for layer, param in client.model.items():
-                alpha = self.calculate_alpha(alpha_range[layer])
+                alpha = self.calculate_alpha(alpha_range[layer], temperature=self.training_settings['NT'])
                 _current_norm = param.norm(p=2)
                 layer_name = layer
                 scaled_param = (param/_current_norm) * (minima_norm[layer_name]+alpha)

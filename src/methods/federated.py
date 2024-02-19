@@ -106,7 +106,7 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                     training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
                 elif 'manual' in training_setting['lr_decay'].lower():
                     if aggregator.global_iter in [total_g_epochs//4, (total_g_epochs*3)//8]:
-                        training_setting['local_lr'] *= 0.1
+                        training_setting['local_lr'] *= 0.5
                 else:
                     raise NotImplementedError("Learning rate decay \'{}\' is not implemented yet.".format(
                         training_setting['lr_decay']))
@@ -172,16 +172,6 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                                                  aggregator.global_iter)
             norm_marker.append(global_model_norm.item())
 
-        # accuracy_marker = np.array(accuracy_marker)
-        # np.savetxt(os.path.join(aggregator.summary_path, "Test_Accuracy.csv"), accuracy_marker, delimiter=',')
-        # aggregator.df_norm_diff = aggregator.df_norm_diff[sorted(aggregator.df_norm_diff.columns)]
-        # aggregator.df_norm_diff['global_model'] = norm_marker
-        # aggregator.df_norm_diff.to_csv(os.path.join(aggregator.summary_path, "Model_Norm.csv"), index=False)
-        #
-        # if aggregator_mode == 'balancer':
-        #     for k, v in aggregator.importance_score.items():
-        #         sorted_df = v[sorted(v.columns)]
-        #         sorted_df.to_csv(os.path.join(aggregator.summary_path, "Importance_score.{}.csv".format(k)), index=False)
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
         system_logger, _ = get_logger(LOGGER_DICT['system'])

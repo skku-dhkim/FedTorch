@@ -49,6 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('--global_lr', type=float, default=1.0)
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--T', type=float, default=1.0)
+    parser.add_argument('--NT', type=float, default=2.0)
     parser.add_argument('--mu', type=float, default=0.01)
     parser.add_argument('--sigma', type=int, default=1)
     parser.add_argument('--balancer', type=lambda x: bool(strtobool(x)), default=False)
@@ -117,11 +118,12 @@ if __name__ == '__main__':
         'cpus': args.cpus,
         'summary_count': args.summary_count,
         'T': args.T,
+        'NT': args.NT,
         'weight_decay': args.weight_decay,
         'mu': args.mu,
         'sigma': args.sigma,
         'aggregator': args.aggregator,
-        # 'lr_decay': 'manual',
+        'lr_decay': 'manual',
         'inverse': args.inverse,
         'dyn_alpha': 0.1,
     }
