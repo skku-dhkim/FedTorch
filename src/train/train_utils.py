@@ -251,7 +251,12 @@ def compute_layer_norms(model):
     layer_norms = {}
     with torch.no_grad():
         for name, param in model.named_parameters():
-            layer_name = name
-            norm = param.data.norm(p=2).item()  # Calculate L2 norms
-            layer_norms[layer_name] = min(layer_norms.get(layer_name, float('inf')), norm)
+            if 'weight' in name:  # Weights
+                for i, _filter in enumerate(param):
+                    filter_name = f"{name}_filter{i}"
+                    norm = _filter.data.norm(p=2).item()  # Calculate L2 norms
+                    layer_norms[filter_name] = min(layer_norms.get(filter_name, float('inf')), norm)
+            else:  # Biases
+                norm = param.data.norm(p=2).item()  # Calculate L2 norms
+                layer_norms[name] = min(layer_norms.get(name, float('inf')), norm)
     return layer_norms

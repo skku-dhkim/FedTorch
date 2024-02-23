@@ -9,6 +9,8 @@ from PIL import Image
 
 import copy
 import seaborn as sns
+import torch
+from torch.backends import cudnn
 
 
 class CustomDataLoader:
@@ -31,6 +33,14 @@ class CustomDataLoader:
         self.as_rgb = False
         self.data_type = data_type
 
+    def setup_seed(self, seed):
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.cuda.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        cudnn.deterministic = True
+
     def _data_sampling(self, dirichlet_alpha: float, num_of_clients: int, num_of_classes: int) -> pd.DataFrame:
         """
         Args:
@@ -46,12 +56,17 @@ class CustomDataLoader:
         #     seed = 2023
         if os.path.isfile(os.path.join(self.main_dir, 'class_distributions.csv')):
             c_dist = pd.read_csv(os.path.join(self.main_dir, 'class_distributions.csv'), index_col=None)
+            with open(os.path.join(self.main_dir, 'seed.txt'), 'r') as f:
+                seed = f.readline()
+            self.setup_seed(int(seed))
+
         else:
             with open(os.path.join(self.main_dir, 'seed.txt'), 'w') as f:
                 seed = random.randint(1, int(1e+4))
                 f.write(str(seed))
 
-            np.random.seed(seed)
+            # np.random.seed(seed)
+            self.setup_seed(seed)
             s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
             c_dist = pd.DataFrame(s)
 

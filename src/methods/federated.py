@@ -4,6 +4,7 @@ from src.methods import *
 from src.model import NUMBER_OF_CLASSES
 from .utils import *
 from src.clients import AggregationBalancer, AvgAggregator, FedBalancerClient
+from src.train.train_utils import compute_layer_norms
 
 
 def local_training(train: ray.remote_function.RemoteFunction,
@@ -122,8 +123,8 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
 
             # INFO: Measure the initial global model norm
-            global_model_norm = aggregator.measure_model_norm(measure_type='all')
-            aggregator.previous_norm = global_model_norm
+            # global_model_norm = aggregator.measure_model_norm(measure_type='all')
+            aggregator.previous_norm = compute_layer_norms(aggregator.model)
 
             # INFO: Federated aggregation schemes
             stream_logger.debug("[*] Federated aggregation scheme...")
@@ -149,8 +150,9 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
 
             # INFO: Update the global model norm and its gradient from t-1 model.
             global_model_norm = aggregator.measure_model_norm(measure_type='all')
-            aggregator.norm_gradient = math.atan(global_model_norm-aggregator.previous_norm)
-
+            norm_by_filters = compute_layer_norms(aggregator.model)
+            aggregator.measure_filter_changed(norm_by_filters)
+            # aggregator.norm_gradient = math.atan(norm_by_filters-aggregator.previous_norm)
             end_time_global_iter = time.time()
             best_result = aggregator.update_test_acc()
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})
@@ -167,9 +169,9 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
             aggregator.summary_writer.add_scalar("weight norm/{}/all".format(aggregator.name),
                                                  global_model_norm,
                                                  aggregator.global_iter)
-            aggregator.summary_writer.add_scalar("weight norm/{}/gradient".format(aggregator.name),
-                                                 aggregator.norm_gradient,
-                                                 aggregator.global_iter)
+            # aggregator.summary_writer.add_scalar("weight norm/{}/gradient".format(aggregator.name),
+            #                                      aggregator.norm_gradient,
+            #                                      aggregator.global_iter)
             norm_marker.append(global_model_norm.item())
 
         summary_logger.info("Global iteration finished successfully.")

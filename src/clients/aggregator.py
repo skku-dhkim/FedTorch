@@ -40,6 +40,7 @@ class Aggregator:
         self.df_norm_diff = None
         self.previous_norm = None
         self.norm_gradient = None
+
         main_dir = Path(log_path).parent.absolute()
         root_dir = Path("./logs").absolute()
 
@@ -154,6 +155,14 @@ class Aggregator:
         vec = torch.cat([p.detach().view(-1) for p in params])
         l2_norm = torch.norm(vec, 2)
         return l2_norm
+
+    def measure_filter_changed(self, current_norm):
+        filter_grad = {}
+        for (k1, current), (k2, previous) in zip(current_norm.items(), self.previous_norm.items()):
+            filter_grad[k1] = math.atan(current-previous)
+        # print(filter_grad)
+        self.norm_gradient = filter_grad
+        # return filter_grad
 
     def gradient_changes(self, previous_model, client_model):
         return previous_model - client_model
@@ -296,10 +305,11 @@ class AggregationBalancer(Aggregator):
             for layer, norm in norms.items():
                 _min_candidate = min(min_norms.get(layer, float('inf')), norm)
                 max_norms[layer] = max(max_norms.get(layer, float('-inf')), norm)
-                if _min_candidate <= server_norms[layer] and 'weight' in layer:
-                    # Norm constrained should larger than global model
-                    continue
-                min_norms[layer] = _min_candidate
+                if _min_candidate <= server_norms[layer]:
+                    # Norm constrained should greater or equal than the global model
+                    min_norms[layer] = server_norms[layer]
+                else:
+                    min_norms[layer] = _min_candidate
         alpha_range = {}
         for layer, norm in max_norms.items():
             alpha_range[layer] = norm - min_norms[layer]
@@ -316,29 +326,43 @@ class AggregationBalancer(Aggregator):
 
         """
         for client in clients:
-            for layer, param in client.model.items():
-                alpha = self.calculate_alpha(alpha_range[layer], temperature=self.training_settings['NT'])
-                _current_norm = param.norm(p=2)
-                layer_name = layer
-                scaled_param = (param/_current_norm) * (minima_norm[layer_name]+alpha)
-                param.copy_(scaled_param)
+            for layer_name, param in client.model.items():
+                if 'weight' in layer_name:  # Weights
+                    for i, _filter in enumerate(param):
+                        filter_name = f"{layer_name}_filter{i}"
+                        alpha = self.calculate_alpha(alpha_range[filter_name],
+                                                     filter_name,
+                                                     temperature=self.training_settings['NT'])
+                        _current_norm = _filter.data.norm(p=2).item()
+                        scaled_param = (_filter / _current_norm) * (minima_norm[filter_name]+alpha)
+                        _filter.copy_(scaled_param)
+                else:  # Biases
+                    _current_norm = param.norm(p=2)
+                    alpha = self.calculate_alpha(alpha_range[layer_name],
+                                                 layer_name,
+                                                 temperature=self.training_settings['NT'])
+                    scaled_param = (param/_current_norm) * (minima_norm[layer_name]+alpha)
+                    param.copy_(scaled_param)
         return clients
 
-    def calculate_alpha(self, max_alpha: float, temperature: float = 2.0):
+    def calculate_alpha(self, max_alpha: float, weight_name: str, temperature: float = 2.0):
         """
         Calculate the adjust alpha factor by global norm gradient.
         Alpha is calculated by 'alpha = exp(-T(x+1))'
         Args:
             max_alpha: (dict) Maximum value of alpha range.
+            weight_name: (str) Filter or FC layer weight name
             temperature: (float) Temperature factor that inversely proportional to gradient value
         Returns: (float) Adjustment alpha factor
         """
         if self.norm_gradient is None:
             # For the first iteration, we use initial alpha value.
-            return max_alpha * math.exp(-temperature)
+            return max_alpha * 0.5
+            # return max_alpha * math.exp(-temperature)
         pi_over_2 = math.pi / 2
-        normalized_angle = self.norm_gradient/pi_over_2
+        normalized_angle = self.norm_gradient[weight_name]/pi_over_2
         alpha = max_alpha * math.exp(-temperature*(normalized_angle+1))
+        # alpha = max_alpha * -0.5*(normalized_angle-1)                 # Inversely linear mapping
         return alpha
 
     def client_importance_score(self, vector, global_model, normalize: bool = True, temperature=1.0, inverse=True):

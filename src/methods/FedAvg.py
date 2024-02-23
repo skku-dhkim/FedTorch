@@ -32,7 +32,8 @@ def train(
     if training_settings['optim'].lower() == 'sgd':
         optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
                           lr=training_settings['local_lr'],
-                          momentum=training_settings['momentum'])
+                          momentum=training_settings['momentum'],
+                          weight_decay=training_settings['weight_decay'])
     else:
         optim = optimizer(filter(lambda p: p.requires_grad, model.parameters()),
                           lr=training_settings['local_lr'])
