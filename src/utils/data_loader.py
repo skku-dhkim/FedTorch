@@ -65,7 +65,6 @@ class CustomDataLoader:
                 seed = random.randint(1, int(1e+4))
                 f.write(str(seed))
 
-            # np.random.seed(seed)
             self.setup_seed(seed)
             s = np.random.dirichlet(np.repeat(dirichlet_alpha, num_of_clients), num_of_classes)
             c_dist = pd.DataFrame(s)

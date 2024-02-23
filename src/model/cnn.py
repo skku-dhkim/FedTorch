@@ -1,5 +1,3 @@
-import fsspec
-
 from src.model import *
 from torch.nn import *
 

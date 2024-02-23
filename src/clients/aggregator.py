@@ -160,9 +160,7 @@ class Aggregator:
         filter_grad = {}
         for (k1, current), (k2, previous) in zip(current_norm.items(), self.previous_norm.items()):
             filter_grad[k1] = math.atan(current-previous)
-        # print(filter_grad)
         self.norm_gradient = filter_grad
-        # return filter_grad
 
     def gradient_changes(self, previous_model, client_model):
         return previous_model - client_model
