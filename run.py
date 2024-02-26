@@ -126,6 +126,8 @@ if __name__ == '__main__':
         # 'lr_decay': 'manual',
         'inverse': args.inverse,
         'dyn_alpha': 0.1,
+        'server_epochs': 2,
+        'server_funct': 'exp',
     }
 
     write_experiment_summary("Client Setting", client_settings)

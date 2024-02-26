@@ -12,9 +12,11 @@ class SimpleCNN(Module):
             # NOTE: If data is mnist type.
             self.fc1 = Linear(64 * 4 * 4, 394)
         else:
-            self.fc1 = Linear(64 * 6 * 6, 394)
-        self.fc2 = Linear(394, 120)
-        self.fc3 = Linear(120, num_classes)
+            # self.fc1 = Linear(64 * 6 * 6, 394)
+            self.fc1 = Linear(64 * 5 * 5, 394)
+
+        self.fc2 = Linear(394, 196)
+        self.fc3 = Linear(196, num_classes)
 
         if 'features' in kwargs:
             self.output_feature_map = kwargs['features']

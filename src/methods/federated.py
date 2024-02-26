@@ -3,7 +3,7 @@ import ray.remote_function
 from src.methods import *
 from src.model import NUMBER_OF_CLASSES
 from .utils import *
-from src.clients import AggregationBalancer, AvgAggregator, FedBalancerClient
+from src.clients import AggregationBalancer, AvgAggregator, FedBalancerClient, FedDF, FedBE
 from src.train.train_utils import compute_layer_norms
 
 
@@ -56,6 +56,10 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
     # INFO - Client initialization
     if training_setting['aggregator'].lower() == 'balancer':
         _aggregator: type(AggregationBalancer) = AggregationBalancer
+    elif training_setting['aggregator'].lower() == 'feddf':
+        _aggregator: type(AggregationBalancer) = FedDF
+    elif training_setting['aggregator'].lower() == 'fedbe':
+        _aggregator: type(AggregationBalancer) = FedBE
     else:
         _aggregator = AvgAggregator
 
@@ -138,6 +142,12 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
             elif aggregator_mode == 'fedavg' or aggregator_mode == 'uniform':
                 stream_logger.debug("[*] FedAvg")
                 aggregator.fed_avg(trained_clients, training_setting['global_lr'], aggregator_mode)
+            elif aggregator_mode == 'feddf':
+                stream_logger.debug("[*] FedDF")
+                aggregator.feddf(trained_clients, training_setting['global_lr'])
+            elif aggregator_mode == 'fedbe':
+                stream_logger.debug("[*] FedBE")
+                aggregator.fedbe(trained_clients, training_setting['global_lr'])
             else:
                 msg = 'Given aggregation scheme does not implemented yet: {}'.format(
                     training_setting['aggregation_scheme'])
@@ -152,7 +162,7 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
             global_model_norm = aggregator.measure_model_norm(measure_type='all')
             norm_by_filters = compute_layer_norms(aggregator.model)
             aggregator.measure_filter_changed(norm_by_filters)
-            # aggregator.norm_gradient = math.atan(norm_by_filters-aggregator.previous_norm)
+
             end_time_global_iter = time.time()
             best_result = aggregator.update_test_acc()
             pbar.set_postfix({'global_acc': aggregator.test_accuracy})
