@@ -127,21 +127,17 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
 
             # INFO: Measure the initial global model norm
-            # global_model_norm = aggregator.measure_model_norm(measure_type='all')
-            aggregator.previous_norm = compute_layer_norms(aggregator.model)
+            aggregator.previous_layer_norm = compute_layer_norms(aggregator.model)
 
             # INFO: Federated aggregation schemes
             stream_logger.debug("[*] Federated aggregation scheme...")
             aggregator_mode = training_setting['aggregator'].lower()
             if aggregator_mode == 'balancer':
                 stream_logger.debug("[*] Aggregation Balancer")
-                aggregator.aggregation_balancer(trained_clients,
-                                                training_setting['global_lr'],
-                                                training_setting['T'],
-                                                training_setting['inverse'])
+                aggregator.aggregation_balancer(trained_clients)
             elif aggregator_mode == 'fedavg' or aggregator_mode == 'uniform':
                 stream_logger.debug("[*] FedAvg")
-                aggregator.fed_avg(trained_clients, training_setting['global_lr'], aggregator_mode)
+                aggregator.fed_avg(trained_clients, aggregator_mode)
             elif aggregator_mode == 'feddf':
                 stream_logger.debug("[*] FedDF")
                 aggregator.feddf(trained_clients, training_setting['global_lr'])
@@ -150,7 +146,7 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                 aggregator.fedbe(trained_clients, training_setting['global_lr'])
             else:
                 msg = 'Given aggregation scheme does not implemented yet: {}'.format(
-                    training_setting['aggregation_scheme'])
+                    training_setting['aggregator'])
                 stream_logger.error(msg)
                 raise NotImplementedError(msg)
 
@@ -159,9 +155,8 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
             clients = F.update_client_dict(clients, trained_clients)
 
             # INFO: Update the global model norm and its gradient from t-1 model.
-            global_model_norm = aggregator.measure_model_norm(measure_type='all')
-            norm_by_filters = compute_layer_norms(aggregator.model)
-            aggregator.measure_filter_changed(norm_by_filters)
+            global_model_norm = aggregator.measure_model_norm()
+            aggregator.norm_gradient = aggregator.measure_layer_norm_changed(compute_layer_norms(aggregator.model))
 
             end_time_global_iter = time.time()
             best_result = aggregator.update_test_acc()
@@ -174,8 +169,6 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                 summary_logger.info("Best Test Accuracy: {}".format(aggregator.best_acc))
 
             accuracy_marker.append(aggregator.test_accuracy)
-            # global_model_norm = aggregator.measure_model_norm(measure_type='all')
-            # aggregator.norm_gradient = math.atan(global_model_norm-aggregator.previous_norm)
             aggregator.summary_writer.add_scalar("weight norm/{}/all".format(aggregator.name),
                                                  global_model_norm,
                                                  aggregator.global_iter)
@@ -183,7 +176,6 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
             #                                      aggregator.norm_gradient,
             #                                      aggregator.global_iter)
             norm_marker.append(global_model_norm.item())
-
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
         system_logger, _ = get_logger(LOGGER_DICT['system'])

@@ -14,7 +14,7 @@ import traceback
 
 if __name__ == '__main__':
     # Argument Parser
-    parser = argparse.ArgumentParser(description="Federated Learning on Pytorch")
+    parser = argparse.ArgumentParser(description="Federated Learning on PyTorch")
 
     # INFO: Required Parameters
     # Data settings
@@ -51,10 +51,10 @@ if __name__ == '__main__':
     parser.add_argument('--T', type=float, default=0.5)
     parser.add_argument('--NT', type=float, default=2.0)
     parser.add_argument('--mu', type=float, default=0.01)
-    parser.add_argument('--sigma', type=int, default=1)
     parser.add_argument('--balancer', type=lambda x: bool(strtobool(x)), default=False)
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--inverse', type=lambda x: bool(strtobool(x)), default=True)
+    parser.add_argument('--server_epochs', type=float, default=20)
 
     # Logs settings
     parser.add_argument('--summary_count', type=int, default=50)
@@ -121,12 +121,11 @@ if __name__ == '__main__':
         'NT': args.NT,
         'weight_decay': args.weight_decay,
         'mu': args.mu,
-        'sigma': args.sigma,
         'aggregator': args.aggregator,
         # 'lr_decay': 'manual',
         'inverse': args.inverse,
         'dyn_alpha': 0.1,
-        'server_epochs': 2,
+        'server_epochs': args.server_epochs,
         'server_funct': 'exp',
     }
 

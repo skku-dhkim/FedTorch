@@ -21,19 +21,19 @@ gpu_frac=0.12
 inverse=True
 local_iter=10
 global_iter=200
-#T=0.5
+T=0.5
+NT=2.0
 
-
-methods=("FedAvg" "FedProx" "FedNova" "FedDyn" "FedBal" )
+methods=("FedAvg" "FedProx" "FedDyn" "FedNova" "FedBal")
+#aggregators=("FedAvg" "Balancer")
+aggregators=("FedAvg" "Balancer" "FedDE" "FedBF")
 
 for method in "${methods[@]}"
 do
-  aggregator="FedAvg"
-  exp_name="$1/${method}_${aggregator}_${dirichlet_alpha}"
-  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --inverse $inverse --cpus $cpus
-
-  aggregator="Balancer"
-  exp_name="$1/${method}_${aggregator}_${dirichlet_alpha}"
-  python run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --gpu $gpu --gpu_frac $gpu_frac --sample_ratio $sample_ratio --inverse $inverse --cpus $cpus
+  for aggregator in "${aggregators[@]}"
+  do
+    exp_name="$1_${dirichlet_alpha}/${method}_${aggregator}"
+    python3 run.py --n_clients $n_clients --dataset $dataset --dirichlet_alpha $dirichlet_alpha --method $method --model $model --exp_name $exp_name --aggregator $aggregator --local_iter $local_iter --global_iter $global_iter --sample_ratio $sample_ratio --cpu $cpus --gpu $gpu --gpu_frac $gpu_frac --inverse $inverse --T $T --NT $NT
+  done
 done
 

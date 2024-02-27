@@ -9,19 +9,12 @@ from src.utils.logger import write_experiment_summary
 
 
 def divergence(student_logits, teacher_logits):
-    divergence = F.kl_div(
+    _divergence = F.kl_div(
         F.log_softmax(student_logits, dim=1),
         F.softmax(teacher_logits, dim=1),
         reduction="batchmean",
     )  # forward KL
-    return divergence
-
-
-def shape_convert(score_vector, layer_vector):
-    size_differences = len(layer_vector.size()) - len(score_vector.size())
-    for _ in range(size_differences):
-        score_vector = score_vector.unsqueeze(-1)
-    return score_vector
+    return _divergence
 
 
 class Aggregator:
@@ -54,7 +47,7 @@ class Aggregator:
                                                data_type=dataset_name.lower())
 
         self.df_norm_diff = None
-        self.previous_norm = None
+        self.previous_layer_norm = None
         self.norm_gradient = None
 
         main_dir = Path(log_path).parent.absolute()
@@ -157,32 +150,25 @@ class Aggregator:
             self.summary_writer.add_scalar("weight_similarity_after/{}".format(k), score, self.global_iter)
         return result
 
-    def measure_model_norm(self, measure_type, model=None):
+    def measure_model_norm(self, model=None):
         if model is None:
             model = self.model
-
-        if measure_type == 'features':
-            params = model.features.parameters()
-        elif measure_type == 'classifier':
-            params = model.classifier.parameters()
+        if type(model) is OrderedDict:
+            vec = torch.cat([p.detach().view(-1) for p in model.values()])
         else:
             params = model.parameters()
-
-        vec = torch.cat([p.detach().view(-1) for p in params])
+            vec = torch.cat([p.detach().view(-1) for p in params])
         l2_norm = torch.norm(vec, 2)
         return l2_norm
 
-    def measure_filter_changed(self, current_norm):
-        filter_grad = {}
-        for (k1, current), (k2, previous) in zip(current_norm.items(), self.previous_norm.items()):
-            filter_grad[k1] = math.atan(current - previous)
-        self.norm_gradient = filter_grad
-
-    def gradient_changes(self, previous_model, client_model):
-        return previous_model - client_model
+    def measure_layer_norm_changed(self, current_norm):
+        layer_grad = {}
+        for (k1, current), (k2, previous) in zip(current_norm.items(), self.previous_layer_norm.items()):
+            layer_grad[k1] = math.atan(current - previous)
+        return layer_grad
 
     def mark_model_diff(self, clients):
-        prev_model_norm_all = self.measure_model_norm("all")
+        prev_model_norm_all = self.measure_model_norm()
 
         if self.df_norm_diff is None:
             column_name = [str(client.name) for client in clients]
@@ -190,12 +176,9 @@ class Aggregator:
 
         tmp_dict = {}
         for client in clients:
-            self.client_model.load_state_dict(client.model)
-            client_model_norm = self.measure_model_norm("all", model=self.client_model)
-            changes = self.gradient_changes(prev_model_norm_all, client_model_norm)
-            self.summary_writer.add_scalar("weight norm/{}/{}".format(client.name, "all"),
-                                           changes,
-                                           self.global_iter)
+            client_model_norm = self.measure_model_norm(client.model)
+            changes = prev_model_norm_all - client_model_norm
+            self.summary_writer.add_scalar("weight norm/{}".format(client.name), changes, self.global_iter)
             tmp_dict[str(client.name)] = changes.item()
 
         new_row = pd.DataFrame(tmp_dict, index=[0])
@@ -215,7 +198,7 @@ class AvgAggregator(Aggregator):
         self.test_accuracy = self.compute_accuracy()
         # self.name = 'Average Aggregator'
 
-    def fed_avg(self, clients: List[Client], global_lr: float, mode='fedavg'):
+    def fed_avg(self, clients: List[Client], mode='fedavg'):
         empty_model = OrderedDict()
         total_len = sum(client.data_len() for client in clients)
 
@@ -226,7 +209,7 @@ class AvgAggregator(Aggregator):
                 else:
                     p = 1 / len(clients)
 
-                empty_model[k] = empty_model.get(k, 0) + client.model[k] * p * global_lr
+                empty_model[k] = empty_model.get(k, 0) + client.model[k] * p * self.training_settings['global_lr']
 
         self.mark_model_diff(clients)
 
@@ -248,21 +231,19 @@ class AggregationBalancer(Aggregator):
         self.test_accuracy = self.compute_accuracy()
         self.importance_score: dict = {}
 
-    def aggregation_balancer(self,
-                             clients: List[Client],
-                             global_lr: float = 1.0, temperature: float = 1.0, inverse: bool = True):
+    def aggregation_balancer(self, clients: List[Client]):
         previous_g_model = self.model.state_dict()
         empty_model = OrderedDict((key, []) for key in self.model.state_dict().keys())
 
         self.mark_model_diff(clients)
 
         # INFO: Normalize the model norm.
-        server_norm = compute_layer_norms(self.model)
-        minima_norm, alpha_range = self.find_min_and_max_norms(clients, server_norm)
+        minima_norm, alpha_range = self.find_min_and_max_norms(clients)
         clients = self.weight_normalization(clients, minima_norm, alpha_range)
 
         # INFO: Collect the weights from all client in a same layer.
         for k, v in self.model.state_dict().items():
+            # NOTE: This lines are ONLY for the metric.
             if k not in self.importance_score.keys() and 'weight' in k:
                 column_name = [str(client.name) for client in clients]
                 self.importance_score[k] = pd.DataFrame(columns=column_name)
@@ -274,31 +255,17 @@ class AggregationBalancer(Aggregator):
         # INFO: Aggregation with cosine angle differences.
         score_dict = defaultdict(lambda: defaultdict(float))
         for name, v in empty_model.items():
-            empty_model[name] = self.client_importance_score(empty_model[name], previous_g_model[name])
-            # NOTE: Deprecate in the future.
-            # if 'layer' not in name and 'fc' not in name:
-            #     # NOTE: Averaging the Feature extractor(for very first layer of ResNet) and others.
-            #     empty_model[name] = torch.mean(v, 0) * global_lr
-            # else:
-            #     if 'weight' in name:
-            #         # importance_score = self.client_importance_score(empty_model[name],
-            #         #                                                 previous_g_model[name],
-            #         #                                                 temperature=temperature,
-            #         #                                                 inverse=inverse)
-            #         # score = self.shape_convert(importance_score, name)
-            #         # empty_model[name] = torch.sum(score * v, dim=0) * global_lr
-            #         empty_model[name] = self.client_importance_score(empty_model[name],
-            #                                                          previous_g_model[name],
-            #                                                          temperature=temperature,
-            #                                                          inverse=inverse)
-            #         for i, client in enumerate(clients):
-            #             score_dict[name][str(client.name)] = importance_score[i].item()
-            #
-            #     else:
-            #         score = self.shape_convert(importance_score, name)
-            #         empty_model[name] = torch.sum(score * v, dim=0) * global_lr
-            #         self.summary_writer.add_histogram('aggregation_score/{}'.format(name.split('.')[0]),
-            #                                           importance_score, self.global_iter + 1)
+            if 'weight' in name:
+                importance_score = self.client_importance_score(empty_model[name], previous_g_model[name])
+                empty_model[name] = self.weight_apply(importance_score, v)
+
+                for i, client in enumerate(clients):
+                    score_dict[name][str(client.name)] = importance_score[i].item()
+
+            else:       # Bias
+                empty_model[name] = self.weight_apply(importance_score, v)
+                self.summary_writer.add_histogram('aggregation_score/{}'.format(name.split('.')[0]),
+                                                  importance_score, self.global_iter + 1)
 
         # NOTE: Global model updates
         self.set_parameters(empty_model, strict=True)
@@ -308,14 +275,14 @@ class AggregationBalancer(Aggregator):
             new_row = pd.DataFrame(v, index=[0])
             self.importance_score[k] = pd.concat([self.importance_score[k], new_row], ignore_index=True)
 
-    def find_min_and_max_norms(self, clients: List, server_norms: dict):
+    def find_min_and_max_norms(self, clients: List):
         """
         Find the minimum norm from clients who participating the in training.
         Args:
             clients: (List) Clients list
-            server_norms: (dict) global_t-1 norm
         Returns: (dict, dict) Minimal norm dictionary and maximum alpha range dictionary.
         """
+        server_norms = compute_layer_norms(self.model)
         client_norms = [client.model_norm for client in clients]
         # List of clients norm calculated layer by layer.
         min_norms = {}
@@ -347,14 +314,12 @@ class AggregationBalancer(Aggregator):
         for client in clients:
             for layer_name, param in client.model.items():
                 if 'weight' in layer_name:  # Weights
-                    for i, _filter in enumerate(param):
-                        filter_name = f"{layer_name}_filter{i}"
-                        alpha = self.calculate_alpha(alpha_range[filter_name],
-                                                     filter_name,
-                                                     temperature=self.training_settings['NT'])
-                        _current_norm = _filter.data.norm(p=2).item()
-                        scaled_param = (_filter / _current_norm) * (minima_norm[filter_name] + alpha)
-                        _filter.copy_(scaled_param)
+                    alpha = self.calculate_alpha(alpha_range[layer_name],
+                                                 layer_name,
+                                                 temperature=self.training_settings['NT'])
+                    _current_norm = param.data.norm(p=2).item()
+                    scaled_param = (param / _current_norm) * (minima_norm[layer_name] + alpha)
+                    param.copy_(scaled_param)
                 else:  # Biases
                     _current_norm = param.norm(p=2)
                     alpha = self.calculate_alpha(alpha_range[layer_name],
@@ -376,12 +341,7 @@ class AggregationBalancer(Aggregator):
         """
         if self.norm_gradient is None:
             # For the first iteration, we use initial alpha value.
-            return max_alpha
-        elif 'layer' in weight_name:
             return max_alpha * 0.5
-            # return max_alpha * 0.5
-
-            # return max_alpha * math.exp(-temperature)
         pi_over_2 = math.pi / 2
         normalized_angle = self.norm_gradient[weight_name] / pi_over_2
         alpha = max_alpha * math.exp(-temperature * (normalized_angle + 1))
@@ -403,10 +363,14 @@ class AggregationBalancer(Aggregator):
             score_vector = torch.exp(-similarity)
         else:
             score_vector = torch.exp(similarity)
-
         score_vector = torch.softmax(score_vector / self.training_settings['T'], dim=0)
-        reshaped_score = shape_convert(score_vector, vector)
-        scored_vector = torch.sum(vector * reshaped_score, dim=0)
+        return score_vector
+
+    def weight_apply(self, score_vector, layer_vector):
+        size_differences = len(layer_vector.size()) - len(score_vector.size())
+        for _ in range(size_differences):
+            score_vector = score_vector.unsqueeze(-1)
+        scored_vector = torch.sum(score_vector * layer_vector, dim=0) * self.training_settings['global_lr']
         return scored_vector
 
 
@@ -649,6 +613,15 @@ class SWAG_server(torch.nn.Module):
 #                                                NUMBER_OF_CLASSES[dataset_name],
 #                                                data_type=dataset_name.lower())
 #
+#     def receive_client_models(self, client_nodes, select_list, size_weights):
+#         client_params = []
+#         for client in client_nodes:
+#             client_params.append(client.model.get_param(clone=True))
+#
+#         agg_weights = [size_weights[idx] for idx in select_list]
+#         agg_weights = [w / sum(agg_weights) for w in agg_weights]
+#
+#         return agg_weights, client_params
 #
 #     def fedlaw_optimization(self, clients: List[Client], global_lr: float):
 #         '''
