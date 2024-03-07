@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from .custom_cnn import CustomCNN, ModelFedCon
 from .cnn import SimpleCNN, ConvNet
 from .resnet import ResNet18, ResNet50
+from .vgg import vgg11, vgg16
+from .mlp import MLP
 
 
 def model_call(model_name: str, num_of_classes: int, **kwargs):
@@ -22,6 +24,12 @@ def model_call(model_name: str, num_of_classes: int, **kwargs):
         return SimpleCNN(num_classes=num_of_classes, **kwargs)
     elif model_name.lower() == 'convnet':
         return ConvNet(num_classes=num_of_classes, **kwargs)
+    elif model_name.lower() == 'mlp':
+        return MLP(num_classes=num_of_classes, **kwargs)
+    elif model_name.lower() == 'vgg11':
+        return vgg11(num_classes=num_of_classes, init_weights=False)
+    elif model_name.lower() == 'vgg16':
+        return vgg16(num_classes=num_of_classes, init_weights=False)
     else:
         raise NotImplementedError("Not implemented yet.")
 

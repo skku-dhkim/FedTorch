@@ -402,6 +402,7 @@ class FedDF(Aggregator):
                 empty_model[k] = empty_model.get(k, 0) + client.model[k] * p * global_lr
 
         self.server_model.load_state_dict(empty_model)
+        self.server_model = self.server_model.to(self.device)
 
         optimizer = torch.optim.Adam(self.server_model.parameters(), lr=1e-3)
 
@@ -411,7 +412,7 @@ class FedDF(Aggregator):
                 # train model
                 data, target = data.to(self.device), target.to(self.device)
 
-                output = self.server_model(data).to(self.device)
+                output = self.server_model(data)
                 client_logits = []
                 for client in clients:
                     self.client_model.load_state_dict(client.model)
@@ -474,11 +475,12 @@ class FedBE(Aggregator):
         nets.append(w_swag)
 
         self.server_model.load_state_dict(empty_model)
+        self.server_model = self.server_model.to(self.device)
         optimizer = torch.optim.SGD(self.server_model.parameters(), lr=1e-3, momentum=0.9, weight_decay=0.00001)
 
         logits = []
         # train and update
-        self.server_model.to(self.device).train()
+        self.server_model.train()
         # central_node.model.cuda().train()
         for _ in range(self.training_settings['server_epochs']):
             # train_loader = central_node.validate_set

@@ -10,13 +10,10 @@ class SimpleCNN(Module):
         self.max_pool = MaxPool2d((2, 2))
         if 'data_type' in kwargs.keys() and 'mnist' in kwargs['data_type']:
             # NOTE: If data is mnist type.
-            self.fc1 = Linear(32 * 4 * 4, 394)
+            self.fc1 = Linear(32 * 4 * 4, 192)
         else:
-            # self.fc1 = Linear(64 * 6 * 6, 394)
-            self.fc1 = Linear(32 * 5 * 5, 384)
-
-        self.fc2 = Linear(384, 192)
-        self.fc3 = Linear(192, num_classes)
+            self.fc1 = Linear(32 * 5 * 5, 192)
+        self.fc2 = Linear(192, num_classes)
 
         if 'features' in kwargs:
             self.output_feature_map = kwargs['features']
@@ -30,50 +27,12 @@ class SimpleCNN(Module):
         x = self.max_pool(x)
         features = torch.flatten(x, 1)
         out = F.relu(self.fc1(features))
-        out = F.relu(self.fc2(out))
-        logit = self.fc3(out)
+        logit = self.fc2(out)
 
         if self.output_feature_map:
             return logit, features
         else:
             return logit
-
-#
-# class SimpleCNN_FedLAW(ReparamModule):
-#     def __init__(self, num_classes: int = 10, **kwargs):
-#         super(SimpleCNN_FedLAW, self).__init__()
-#         self.layer1 = Conv2d(3, 32, (5, 5))
-#         self.layer2 = Conv2d(32, 32, (5, 5))
-#         self.max_pool = MaxPool2d((2, 2))
-#         if 'data_type' in kwargs.keys() and 'mnist' in kwargs['data_type']:
-#             # NOTE: If data is mnist type.
-#             self.fc1 = Linear(64 * 4 * 4, 394)
-#         else:
-#             # self.fc1 = Linear(64 * 6 * 6, 394)
-#             self.fc1 = Linear(32 * 4 * 4, 384)
-#
-#         self.fc2 = Linear(384, 192)
-#         self.fc3 = Linear(192, num_classes)
-#
-#         if 'features' in kwargs:
-#             self.output_feature_map = kwargs['features']
-#         else:
-#             self.output_feature_map = False
-#
-#     def forward(self, x):
-#         x = F.relu(self.layer1(x))
-#         x = self.max_pool(x)
-#         x = F.relu(self.layer2(x))
-#         x = self.max_pool(x)
-#         features = torch.flatten(x, 1)
-#         out = F.relu(self.fc1(features))
-#         out = F.relu(self.fc2(out))
-#         logit = self.fc3(out)
-#
-#         if self.output_feature_map:
-#             return logit, features
-#         else:
-#             return logit
 
 
 class ConvNet(Module):
