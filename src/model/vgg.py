@@ -5,20 +5,20 @@ from typing import cast, Dict, List, Union
 
 class VGG(nn.Module):
     def __init__(
-        self, features: nn.Module, num_classes: int = 1000, init_weights: bool = True, dropout: float = 0.5
+        self, features: nn.Module, num_classes: int = 1000, init_weights: bool = False, dropout: float = 0.5, data_type=None
     ) -> None:
         super().__init__()
         # _log_api_usage_once(self)
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, 512),
+            nn.Linear(512 * 7 * 7, 4096),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
-            nn.Linear(512, 256),
+            nn.Linear(4096, 4096),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
-            nn.Linear(256, num_classes),
+            nn.Linear(4096, num_classes),
         )
         if init_weights:
             for m in self.modules():

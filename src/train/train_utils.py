@@ -1,4 +1,5 @@
 from src.train import *
+from collections import OrderedDict
 
 
 def get_probability(input_tensor: torch.Tensor, logit: bool = False) -> torch.Tensor:
@@ -247,10 +248,19 @@ def calculate_norm_gap(tensor_a: torch.Tensor, tensor_b: torch.Tensor,
     return norm_gap
 
 
-def compute_layer_norms(model):
+def compute_layer_norms(model: Union[nn.Module, OrderedDict]):
     layer_norms = {}
-    with torch.no_grad():
-        for layer_name, param in model.named_parameters():
+    if isinstance(model, nn.Module):
+        with torch.no_grad():
+            for layer_name, param in model.named_parameters():
+                if 'weight' in layer_name:  # Weights
+                    norm = param.data.norm(p=2).item()  # Calculate L2 norms
+                    layer_norms[layer_name] = min(layer_norms.get(layer_name, float('inf')), norm)
+                else:  # Biases
+                    norm = param.data.norm(p=2).item()  # Calculate L2 norms
+                    layer_norms[layer_name] = min(layer_norms.get(layer_name, float('inf')), norm)
+    else:
+        for layer_name, param in model.items():
             if 'weight' in layer_name:  # Weights
                 norm = param.data.norm(p=2).item()  # Calculate L2 norms
                 layer_norms[layer_name] = min(layer_norms.get(layer_name, float('inf')), norm)

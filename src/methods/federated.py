@@ -4,7 +4,6 @@ from src.methods import *
 from src.model import NUMBER_OF_CLASSES
 from .utils import *
 from src.clients import AggregationBalancer, AvgAggregator, FedBalancerClient, FedDF, FedBE
-from src.train.train_utils import compute_layer_norms
 
 
 def local_training(train: ray.remote_function.RemoteFunction,
@@ -90,6 +89,7 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
 
         accuracy_marker = []
         norm_marker = []
+        df_model_norm = pd.DataFrame()
 
         for gr in pbar:
             start_time_global_iter = time.time()
@@ -126,9 +126,6 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                                              training_settings=training_setting,
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
 
-            # INFO: Measure the initial global model norm
-            aggregator.previous_layer_norm = compute_layer_norms(aggregator.model)
-
             # INFO: Federated aggregation schemes
             stream_logger.debug("[*] Federated aggregation scheme...")
             aggregator_mode = training_setting['aggregator'].lower()
@@ -156,7 +153,8 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
 
             # INFO: Update the global model norm and its gradient from t-1 model.
             global_model_norm = aggregator.measure_model_norm()
-            aggregator.norm_gradient = aggregator.measure_layer_norm_changed(compute_layer_norms(aggregator.model))
+            global_layer_norm = aggregator.measure_model_norm(mode='layer')
+            df_model_norm = pd.concat([df_model_norm, pd.DataFrame([global_layer_norm])], ignore_index=True)
 
             end_time_global_iter = time.time()
             best_result = aggregator.update_test_acc()
@@ -172,9 +170,6 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
             aggregator.summary_writer.add_scalar("weight norm/{}/all".format(aggregator.name),
                                                  global_model_norm,
                                                  aggregator.global_iter)
-            # aggregator.summary_writer.add_scalar("weight norm/{}/gradient".format(aggregator.name),
-            #                                      aggregator.norm_gradient,
-            #                                      aggregator.global_iter)
             norm_marker.append(global_model_norm.item())
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
@@ -184,9 +179,8 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
     finally:
         accuracy_marker = np.array(accuracy_marker)
         np.savetxt(os.path.join(aggregator.summary_path, "Test_Accuracy.csv"), accuracy_marker, delimiter=',')
-        aggregator.df_norm_diff = aggregator.df_norm_diff[sorted(aggregator.df_norm_diff.columns)]
-        aggregator.df_norm_diff['global_model'] = norm_marker
-        aggregator.df_norm_diff.to_csv(os.path.join(aggregator.summary_path, "Model_Norm.csv"), index=False)
+        df_model_norm['global_model'] = norm_marker
+        df_model_norm.to_csv(os.path.join(aggregator.summary_path, "Model_Norm.csv"), index=False)
 
         if aggregator_mode == 'balancer':
             for k, v in aggregator.importance_score.items():

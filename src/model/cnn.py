@@ -2,23 +2,34 @@ from src.model import *
 from torch.nn import *
 
 
+def _initialize_weights(models):
+    for m in models:
+        if isinstance(m, Conv2d) or isinstance(m, Linear):
+            init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                init.constant_(m.bias, 0)
+
+
 class SimpleCNN(Module):
-    def __init__(self, num_classes: int = 10, **kwargs):
+    def __init__(self, num_classes: int = 10,
+                 init_weights: bool = False,
+                 features: bool = False,
+                 data_type: str = 'cifar-10'):
         super(SimpleCNN, self).__init__()
-        self.layer1 = Conv2d(3, 16, (5, 5))
-        self.layer2 = Conv2d(16, 32, (5, 5))
+        self.layer1 = Conv2d(3, 32, (5, 5))
+        self.layer2 = Conv2d(32, 64, (5, 5))
         self.max_pool = MaxPool2d((2, 2))
-        if 'data_type' in kwargs.keys() and 'mnist' in kwargs['data_type']:
+        if 'mnist' in data_type:
             # NOTE: If data is mnist type.
             self.fc1 = Linear(32 * 4 * 4, 192)
         else:
-            self.fc1 = Linear(32 * 5 * 5, 192)
+            self.fc1 = Linear(64 * 5 * 5, 192)
         self.fc2 = Linear(192, num_classes)
 
-        if 'features' in kwargs:
-            self.output_feature_map = kwargs['features']
-        else:
-            self.output_feature_map = False
+        self.output_feature_map = features
+
+        if init_weights:
+            _initialize_weights(self.modules())
 
     def forward(self, x):
         x = F.relu(self.layer1(x))
@@ -36,7 +47,10 @@ class SimpleCNN(Module):
 
 
 class ConvNet(Module):
-    def __init__(self, num_classes: int = 10, **kwargs):
+    def __init__(self, num_classes: int = 10,
+                 init_weights: bool = False,
+                 features: bool = False,
+                 data_type: str = 'cifar-10'):
         super(ConvNet, self).__init__()
 
         self.layer1 = Conv2d(3, 64, (3, 3), padding=1)
@@ -44,16 +58,16 @@ class ConvNet(Module):
         self.layer3 = Conv2d(64, 128, (3, 3), padding=1)
         self.max_pool = MaxPool2d((2, 2))
 
-        if 'data_type' in kwargs.keys() and 'mnist' in kwargs['data_type']:
+        if 'mnist' in data_type:
             # NOTE: If data is mnist type.
             self.fc = Linear(128 * 15 * 15, num_classes)
         else:
             self.fc = Linear(128 * 17 * 17, num_classes)
 
-        if 'features' in kwargs:
-            self.output_feature_map = kwargs['features']
-        else:
-            self.output_feature_map = False
+        self.output_feature_map = features
+
+        if init_weights:
+            _initialize_weights(self.modules())
 
     def forward(self, x):
         x = F.relu(self.layer1(x))

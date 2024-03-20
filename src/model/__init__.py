@@ -27,9 +27,9 @@ def model_call(model_name: str, num_of_classes: int, **kwargs):
     elif model_name.lower() == 'mlp':
         return MLP(num_classes=num_of_classes, **kwargs)
     elif model_name.lower() == 'vgg11':
-        return vgg11(num_classes=num_of_classes, init_weights=False)
+        return vgg11(num_classes=num_of_classes, **kwargs)
     elif model_name.lower() == 'vgg16':
-        return vgg16(num_classes=num_of_classes, init_weights=False)
+        return vgg16(num_classes=num_of_classes, **kwargs)
     else:
         raise NotImplementedError("Not implemented yet.")
 
