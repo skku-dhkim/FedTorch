@@ -45,8 +45,6 @@ class Aggregator:
                                                NUMBER_OF_CLASSES[dataset_name],
                                                data_type=dataset_name.lower())
 
-        # self.df_norm_diff = pd.DataFrame(columns=['global_model'])
-
         main_dir = Path(log_path).parent.absolute()
         root_dir = Path("./logs").absolute()
 
@@ -211,23 +209,27 @@ def find_min_and_max_norms(clients: List):
 
     # List of clients norm calculated layer by layer.
     min_norms = {}
-    max_norms = {}
+    median_norms = defaultdict(list)
     for norms in client_norms:
         for layer, norm in norms.items():
             min_norms[layer] = min(min_norms.get(layer, float('inf')), norm)
-            max_norms[layer] = max(max_norms.get(layer, float('-inf')), norm)
+            median_norms[layer].append(norm)
+    median_norms = dict(median_norms)
+    for k, v in median_norms.items():
+        v = torch.Tensor(v)
+        median_norms[k] = torch.median(v)
     alpha_range = {}
-    for layer, norm in max_norms.items():
+    for layer, norm in median_norms.items():
         alpha_range[layer] = norm - min_norms[layer]
     return min_norms, alpha_range
 
 
-def calculate_alpha(max_alpha: float, weight_name: str, norm_grad: dict, temperature: float = 2.0):
+def calculate_alpha(alpha_range: float, weight_name: str, norm_grad: dict, temperature: float = 2.0):
     """
     Calculate the adjust alpha factor by global norm gradient.
     Alpha is calculated by 'alpha = exp(-T(x+1))'
     Args:
-        max_alpha: (dict) Maximum value of alpha range.
+        alpha_range: (dict) Maximum value of alpha range.
         weight_name: (str) Filter or FC layer weight name
         norm_grad: (dict) Gradient of norms
         temperature: (float) Temperature factor that inversely proportional to gradient value
@@ -235,7 +237,7 @@ def calculate_alpha(max_alpha: float, weight_name: str, norm_grad: dict, tempera
     """
     pi_over_2 = math.pi / 2
     normalized_angle = norm_grad[weight_name] / pi_over_2
-    alpha = max_alpha * math.exp(-temperature * (normalized_angle + 1))
+    alpha = alpha_range * math.exp(-temperature * (normalized_angle + 1))
     # alpha = max_alpha * -0.5*(normalized_angle-1)                 # Inversely linear mapping
     return alpha
 
@@ -251,11 +253,7 @@ class AggregationBalancer(Aggregator):
 
         super().__init__(test_data, valid_data, dataset_name, log_path, train_settings, **kwargs)
         self.importance_score: dict = {}
-        __temp_model = model_call(train_settings['model'],
-                                  NUMBER_OF_CLASSES[dataset_name],
-                                  data_type=dataset_name.lower(),
-                                  init_weights=True)
-        self.target_norm = compute_layer_norms(__temp_model)
+        self.previous_norm = compute_layer_norms(self.model)
 
     def aggregation_balancer(self, clients: List[Client]):
         previous_g_model = self.model.state_dict()
@@ -277,10 +275,11 @@ class AggregationBalancer(Aggregator):
 
         # INFO: Normalize the model norm.
         minima_norm, alpha_range = find_min_and_max_norms(clients)
-        self.weight_normalization(weighted_global, minima_norm, alpha_range)
+        normalized_global = self.weight_normalization(weighted_global, minima_norm, alpha_range)
 
         # NOTE: Global model updates
-        self.set_parameters(weighted_global, strict=True)
+        self.set_parameters(normalized_global, strict=True)
+        self.previous_norm = compute_layer_norms(normalized_global)
         self.global_iter += 1
 
     def weighted_aggregation(self, clients_models: OrderedDict, prev_global, clients: Optional[List] = None):
@@ -319,8 +318,8 @@ class AggregationBalancer(Aggregator):
         """
         norm_grad = defaultdict(lambda: defaultdict(float))
         norm_wg = compute_layer_norms(weighted_global)
-        for value1, value2 in zip(norm_wg.items(), self.target_norm.items()):
-            norm_grad[value1[0]] = math.atan((value1[1] - value2[1]) / (value2[1] + 1e-7))
+        for value1, value2 in zip(norm_wg.items(), self.previous_norm.items()):
+            norm_grad[value1[0]] = math.atan((value1[1]-value2[1]))
         norm_grad = dict(norm_grad)
 
         for layer_name, param in weighted_global.items():
@@ -331,6 +330,7 @@ class AggregationBalancer(Aggregator):
             _current_norm = param.data.norm(p=2).item()
             scaled_param = (param / _current_norm) * (minima_norm[layer_name] + alpha)
             param.copy_(scaled_param)
+        return weighted_global
 
     def client_importance_score(self, vector, global_model):
         weight_vec = vector.view(vector.size()[0], -1)
@@ -358,6 +358,7 @@ class AggregationBalancer(Aggregator):
         return scored_vector
 
 
+# TODO: I need to implement the Serverside method my own [24. 3.26 ~ 24. 3. 31]
 class FedDF(Aggregator):
     def __init__(self,
                  test_data: DataLoader,

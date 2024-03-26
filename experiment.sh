@@ -14,22 +14,22 @@ cpus=4
 n_clients=20
 sample_ratio=1.0
 #dirichlet_alpha=0.05
-#model="Simple_CNN"
+model="Simple_CNN"
 #model="Resnet-18"
-model="Vgg11"
+#model="Vgg11"
 
 
 dataset="Cifar-10"
 gpu=True
-gpu_frac=0.12
+gpu_frac=0.1
 inverse=True
 local_iter=10
 global_iter=100
 T=0.5
 NT=2.0
 
-methods=("FedAvg" "FedProx" "FedDyn" "FedNova" "FedBal")
-#methods=("FedAvg")
+#methods=("FedAvg" "FedProx" "FedDyn" "FedNova" "FedBal")
+methods=("FedAvg")
 aggregators=("FedAvg" "Balancer")
 #aggregators=("FedAvg" "Balancer" "FedDF" "FedBE")
 #aggregators=("FedDF" "FedBE")

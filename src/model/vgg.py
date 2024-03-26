@@ -5,20 +5,25 @@ from typing import cast, Dict, List, Union
 
 class VGG(nn.Module):
     def __init__(
-        self, features: nn.Module, num_classes: int = 1000, init_weights: bool = False, dropout: float = 0.5, data_type=None
+        self, features: nn.Module,
+            num_classes: int = 1000,
+            init_weights: bool = False,
+            dropout: float = 0.5,
+            feature_maps: bool = False,
+            **kwargs
     ) -> None:
         super().__init__()
         # _log_api_usage_once(self)
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, 4096),
+            nn.Linear(512 * 7 * 7, 512),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
-            nn.Linear(4096, 4096),
+            nn.Linear(512, 256),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
-            nn.Linear(4096, num_classes),
+            nn.Linear(256, num_classes),
         )
         if init_weights:
             for m in self.modules():
@@ -32,13 +37,17 @@ class VGG(nn.Module):
                 elif isinstance(m, nn.Linear):
                     nn.init.normal_(m.weight, 0, 0.01)
                     nn.init.constant_(m.bias, 0)
+        self.feature_maps = feature_maps
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.features(x)
-        x = self.avgpool(x)
+    def forward(self, x: torch.Tensor) -> Union[torch.Tensor, tuple]:
+        features = self.features(x)
+        x = self.avgpool(features)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
-        return x
+        if self.feature_maps:
+            return x, features
+        else:
+            return x
 
 
 def make_layers(cfg: List[Union[str, int]], batch_norm: bool = False) -> nn.Sequential:
@@ -49,7 +58,7 @@ def make_layers(cfg: List[Union[str, int]], batch_norm: bool = False) -> nn.Sequ
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
         else:
             v = cast(int, v)
-            conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
+            conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1, bias=False)
             if batch_norm:
                 layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
             else:

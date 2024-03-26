@@ -18,7 +18,7 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
 
     # INFO - Call the model architecture and set parameters.
-    model = model_call(training_settings['model'], num_of_classes, features=True, data_type=client.data_type)
+    model = model_call(training_settings['model'], num_of_classes, features_map=True, data_type=client.data_type)
     model.load_state_dict(client.model)
     model = model.to(device)
 

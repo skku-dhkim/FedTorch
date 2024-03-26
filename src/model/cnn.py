@@ -13,20 +13,20 @@ def _initialize_weights(models):
 class SimpleCNN(Module):
     def __init__(self, num_classes: int = 10,
                  init_weights: bool = False,
-                 features: bool = False,
+                 feature_maps: bool = False,
                  data_type: str = 'cifar-10'):
         super(SimpleCNN, self).__init__()
-        self.layer1 = Conv2d(3, 32, (5, 5))
-        self.layer2 = Conv2d(32, 64, (5, 5))
+        self.layer1 = Conv2d(3, 16, (5, 5), bias=False)
+        self.layer2 = Conv2d(16, 32, (5, 5), bias=False)
         self.max_pool = MaxPool2d((2, 2))
         if 'mnist' in data_type:
             # NOTE: If data is mnist type.
             self.fc1 = Linear(32 * 4 * 4, 192)
         else:
-            self.fc1 = Linear(64 * 5 * 5, 192)
+            self.fc1 = Linear(32 * 5 * 5, 192)
         self.fc2 = Linear(192, num_classes)
 
-        self.output_feature_map = features
+        self.output_feature_map = feature_maps
 
         if init_weights:
             _initialize_weights(self.modules())
@@ -49,7 +49,7 @@ class SimpleCNN(Module):
 class ConvNet(Module):
     def __init__(self, num_classes: int = 10,
                  init_weights: bool = False,
-                 features: bool = False,
+                 feature_maps: bool = False,
                  data_type: str = 'cifar-10'):
         super(ConvNet, self).__init__()
 
@@ -64,7 +64,7 @@ class ConvNet(Module):
         else:
             self.fc = Linear(128 * 17 * 17, num_classes)
 
-        self.output_feature_map = features
+        self.output_feature_map = feature_maps
 
         if init_weights:
             _initialize_weights(self.modules())
