@@ -245,3 +245,16 @@ def calculate_norm_gap(tensor_a: torch.Tensor, tensor_b: torch.Tensor,
     if normalize:
         norm_gap = min_max_normalization(norm_gap)
     return norm_gap
+
+
+def compute_layer_norms(model):
+    layer_norms = {}
+    with torch.no_grad():
+        for layer_name, param in model.named_parameters():
+            if 'weight' in layer_name:  # Weights
+                norm = param.data.norm(p=2).item()  # Calculate L2 norms
+                layer_norms[layer_name] = min(layer_norms.get(layer_name, float('inf')), norm)
+            else:  # Biases
+                norm = param.data.norm(p=2).item()  # Calculate L2 norms
+                layer_norms[layer_name] = min(layer_norms.get(layer_name, float('inf')), norm)
+    return layer_norms

@@ -3,7 +3,8 @@ import ray.remote_function
 from src.methods import *
 from src.model import NUMBER_OF_CLASSES
 from .utils import *
-from src.clients import AggregationBalancer, AvgAggregator, FedBalancerClient
+from src.clients import AggregationBalancer, AvgAggregator, FedBalancerClient, FedDF, FedBE
+from src.train.train_utils import compute_layer_norms
 
 
 def local_training(train: ray.remote_function.RemoteFunction,
@@ -55,10 +56,12 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
     # INFO - Client initialization
     if training_setting['aggregator'].lower() == 'balancer':
         _aggregator: type(AggregationBalancer) = AggregationBalancer
-        # client = FedBalancerClient
+    elif training_setting['aggregator'].lower() == 'feddf':
+        _aggregator: type(AggregationBalancer) = FedDF
+    elif training_setting['aggregator'].lower() == 'fedbe':
+        _aggregator: type(AggregationBalancer) = FedBE
     else:
         _aggregator = AvgAggregator
-        # client = Client
 
     if 'fedbal' in training_setting['method'].lower():
         client = FedBalancerClient
@@ -85,14 +88,11 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
             total_g_epochs = training_setting['global_epochs']
             lr_decay = True
 
-        # best_accuracy = aggregator.best_acc
         accuracy_marker = []
+        norm_marker = []
 
         for gr in pbar:
             start_time_global_iter = time.time()
-
-            # # INFO - Save the global model
-            # aggregator.save_model()
 
             # INFO - Download the model from aggregator
             stream_logger.debug("[*] Client downloads the model from aggregator...")
@@ -110,8 +110,8 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                                 1 + math.cos(aggregator.global_iter * math.pi / total_g_epochs))
                     training_setting['local_lr'] = 0.001 if training_setting['local_lr'] < 0.001 else training_setting['local_lr']
                 elif 'manual' in training_setting['lr_decay'].lower():
-                    if aggregator.global_iter in [total_g_epochs // 4, (total_g_epochs * 3) // 8]:
-                        training_setting['local_lr'] *= 0.1
+                    if aggregator.global_iter in [total_g_epochs//4, (total_g_epochs*3)//8]:
+                        training_setting['local_lr'] *= 0.5
                 else:
                     raise NotImplementedError("Learning rate decay \'{}\' is not implemented yet.".format(
                         training_setting['lr_decay']))
@@ -126,26 +126,37 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                                              training_settings=training_setting,
                                              num_of_class=NUMBER_OF_CLASSES[client_setting['dataset'].lower()])
 
+            # INFO: Measure the initial global model norm
+            aggregator.previous_layer_norm = compute_layer_norms(aggregator.model)
+
+            # INFO: Federated aggregation schemes
             stream_logger.debug("[*] Federated aggregation scheme...")
             aggregator_mode = training_setting['aggregator'].lower()
             if aggregator_mode == 'balancer':
                 stream_logger.debug("[*] Aggregation Balancer")
-                aggregator.aggregation_balancer(trained_clients,
-                                                training_setting['global_lr'],
-                                                training_setting['T'],
-                                                training_setting['sigma'],
-                                                training_setting['inverse'])
+                aggregator.aggregation_balancer(trained_clients)
             elif aggregator_mode == 'fedavg' or aggregator_mode == 'uniform':
                 stream_logger.debug("[*] FedAvg")
-                aggregator.fed_avg(trained_clients, training_setting['global_lr'], aggregator_mode)
+                aggregator.fed_avg(trained_clients, aggregator_mode)
+            elif aggregator_mode == 'feddf':
+                stream_logger.debug("[*] FedDF")
+                aggregator.feddf(trained_clients, training_setting['global_lr'])
+            elif aggregator_mode == 'fedbe':
+                stream_logger.debug("[*] FedBE")
+                aggregator.fedbe(trained_clients, training_setting['global_lr'])
             else:
                 msg = 'Given aggregation scheme does not implemented yet: {}'.format(
-                    training_setting['aggregation_scheme'])
+                    training_setting['aggregator'])
                 stream_logger.error(msg)
                 raise NotImplementedError(msg)
 
+            # INFO: Update the weights
             stream_logger.debug("[*] Weight Updates")
             clients = F.update_client_dict(clients, trained_clients)
+
+            # INFO: Update the global model norm and its gradient from t-1 model.
+            global_model_norm = aggregator.measure_model_norm()
+            aggregator.norm_gradient = aggregator.measure_layer_norm_changed(compute_layer_norms(aggregator.model))
 
             end_time_global_iter = time.time()
             best_result = aggregator.update_test_acc()
@@ -158,14 +169,30 @@ def run(client_setting: dict, training_setting: dict, train_fnc: ray.remote_func
                 summary_logger.info("Best Test Accuracy: {}".format(aggregator.best_acc))
 
             accuracy_marker.append(aggregator.test_accuracy)
-
-        accuracy_marker = np.array(accuracy_marker)
-        np.savetxt(os.path.join(aggregator.summary_path, "Test_accuracy.csv"), accuracy_marker, delimiter=',')
+            aggregator.summary_writer.add_scalar("weight norm/{}/all".format(aggregator.name),
+                                                 global_model_norm,
+                                                 aggregator.global_iter)
+            # aggregator.summary_writer.add_scalar("weight norm/{}/gradient".format(aggregator.name),
+            #                                      aggregator.norm_gradient,
+            #                                      aggregator.global_iter)
+            norm_marker.append(global_model_norm.item())
         summary_logger.info("Global iteration finished successfully.")
     except Exception as e:
         system_logger, _ = get_logger(LOGGER_DICT['system'])
         system_logger.error(traceback.format_exc())
         raise Exception(traceback.format_exc())
+    finally:
+        accuracy_marker = np.array(accuracy_marker)
+        np.savetxt(os.path.join(aggregator.summary_path, "Test_Accuracy.csv"), accuracy_marker, delimiter=',')
+        aggregator.df_norm_diff = aggregator.df_norm_diff[sorted(aggregator.df_norm_diff.columns)]
+        aggregator.df_norm_diff['global_model'] = norm_marker
+        aggregator.df_norm_diff.to_csv(os.path.join(aggregator.summary_path, "Model_Norm.csv"), index=False)
+
+        if aggregator_mode == 'balancer':
+            for k, v in aggregator.importance_score.items():
+                sorted_df = v[sorted(v.columns)]
+                sorted_df.to_csv(os.path.join(aggregator.summary_path, "Importance_score.{}.csv".format(k)),
+                                 index=False)
 
     end_run_time = time.time()
     summary_logger.info("Global Running time: {:.2f}".format(end_run_time - start_runtime))

@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.parameter import Parameter
-from typing import Union, Optional, Tuple, Dict, Any, List, Callable
+from typing import Union, Optional, Tuple, Dict, Any, List, Callable, Sequence
 from collections import OrderedDict
 from pathlib import Path
 
@@ -15,7 +15,7 @@ __all__ = [
     'Dataset',
     'DataLoader',
     'Parameter',
-    'Union', 'Optional', 'Tuple', 'Dict', 'Any', 'List', 'Callable',
+    'Union', 'Optional', 'Tuple', 'Dict', 'Any', 'List', 'Callable', 'Sequence',
     'OrderedDict',
     'os',
     'np',

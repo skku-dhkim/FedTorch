@@ -6,6 +6,7 @@ from . import *
 from .utils import *
 from src.methods.federated import run
 from torch.optim.optimizer import Optimizer
+from src.train.train_utils import compute_layer_norms
 
 
 class FedProx(Optimizer):
@@ -199,28 +200,27 @@ def train(
             client.step_counter += 1
             summary_counter += 1
 
-            if summary_counter % training_settings["summary_count"] == 0:
-                training_acc, _ = F.compute_accuracy(model, client.train_loader, loss_fn)
-                summary_writer.add_scalar('step_loss', training_loss / summary_counter, client.step_counter)
-                summary_writer.add_scalar('step_acc', training_acc, client.step_counter)
-                summary_counter = 0
-                training_loss = 0
-
         # INFO - Epoch summary
         test_acc, test_loss = F.compute_accuracy(model, client.test_loader, loss_fn)
         train_acc, train_loss = F.compute_accuracy(model, client.train_loader, loss_fn)
 
-        summary_writer.add_scalar('epoch_loss/train', train_loss, client.epoch_counter)
-        summary_writer.add_scalar('epoch_loss/test', test_loss, client.epoch_counter)
+        summary_writer.add_scalar('acc/local_train', train_acc, client.epoch_counter)
+        summary_writer.add_scalar('acc/local_test', test_acc, client.epoch_counter)
 
-        summary_writer.add_scalar('epoch_acc/local_train', train_acc, client.epoch_counter)
-        summary_writer.add_scalar('epoch_acc/local_test', test_acc, client.epoch_counter)
+        summary_writer.add_scalar('loss/local_train', train_loss, client.epoch_counter)
+        summary_writer.add_scalar('loss/local_test', test_loss, client.epoch_counter)
 
         client.epoch_counter += 1
 
     # INFO - Local model update
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
+
+    # INFO - For the Aggregation Balancer
+    if training_settings['aggregator'].lower() == 'balancer':
+        client.model_norm = compute_layer_norms(model)
+
     return client
+
 
 def run_fedprox(client_setting: dict, training_setting: dict):
     run(client_setting, training_setting, train_fnc=train)
