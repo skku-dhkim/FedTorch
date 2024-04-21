@@ -17,13 +17,13 @@ class VGG(nn.Module):
         self.features = features
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, 512),
+            nn.Linear(512 * 7 * 7, 4096),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
-            nn.Linear(512, 256),
+            nn.Linear(4096, 4096),
             nn.ReLU(True),
             nn.Dropout(p=dropout),
-            nn.Linear(256, num_classes),
+            nn.Linear(4096, num_classes),
         )
         if init_weights:
             for m in self.modules():

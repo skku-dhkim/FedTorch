@@ -142,21 +142,21 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 32, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        # self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
-        #                                dilate=replace_stride_with_dilation[1])
-        self.layer3 = self._make_layer(block, 64, layers[2], stride=2,
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
-        # self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
-        #                                dilate=replace_stride_with_dilation[2])
-        self.layer4 = self._make_layer(block, 128, layers[3], stride=2,
+        # self.layer3 = self._make_layer(block, 64, layers[2], stride=2,
+        #                                dilate=replace_stride_with_dilation[1])
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
+        # self.layer4 = self._make_layer(block, 128, layers[3], stride=2,
+        #                                dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.classifier = nn.Linear(128 * block.expansion, num_classes)
 
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+            # if isinstance(m, nn.Conv2d):
+            #     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 

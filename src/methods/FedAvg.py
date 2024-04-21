@@ -79,9 +79,6 @@ def train(
 
         client.epoch_counter += 1
 
-    # if training_settings['aggregator'].lower() == 'balancer':
-    #     client.model_norm = compute_layer_norms(model)
-
     # INFO - Local model update
     client.grad = client_gradient(previous=client.model, current=model.state_dict())
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
