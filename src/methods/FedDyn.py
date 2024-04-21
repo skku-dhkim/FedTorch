@@ -1,7 +1,7 @@
 from . import *
 from .utils import *
 from src.methods.federated import run
-from src.train.train_utils import compute_layer_norms
+from src.train.train_utils import client_gradient, compute_layer_norms
 
 
 @ray.remote(max_calls=1)
@@ -91,11 +91,12 @@ def train(client: Client, training_settings: dict, num_of_classes: int):
         client.epoch_counter += 1
 
     # INFO - Local model update
+    client.grad = client_gradient(previous=client.model, current=model.state_dict())
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
 
     # INFO - For the Aggregation Balancer
     if training_settings['aggregator'].lower() == 'balancer':
-        client.model_norm = compute_layer_norms(model)
+        client.grad_norm = compute_layer_norms(client.grad)
 
     return client
 

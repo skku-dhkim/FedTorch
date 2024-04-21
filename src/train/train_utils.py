@@ -268,3 +268,10 @@ def compute_layer_norms(model: Union[nn.Module, OrderedDict]):
                 norm = param.data.norm(p=2).item()  # Calculate L2 norms
                 layer_norms[layer_name] = min(layer_norms.get(layer_name, float('inf')), norm)
     return layer_norms
+
+
+def client_gradient(previous: OrderedDict, current: OrderedDict) -> OrderedDict:
+    grad = OrderedDict()
+    for prev, curr in zip(previous.items(), current.items()):
+        grad[prev[0]] = curr[1] - prev[1]
+    return grad

@@ -52,7 +52,7 @@ if __name__ == '__main__':
     parser.add_argument('--NT', type=float, default=2.0)
     parser.add_argument('--mu', type=float, default=0.01)
     parser.add_argument('--balancer', type=lambda x: bool(strtobool(x)), default=False)
-    parser.add_argument('--weight_decay', type=float, default=0)
+    parser.add_argument('--weight_decay', type=float, default=1e-7)
     parser.add_argument('--inverse', type=lambda x: bool(strtobool(x)), default=True)
     parser.add_argument('--server_epochs', type=float, default=20)
 

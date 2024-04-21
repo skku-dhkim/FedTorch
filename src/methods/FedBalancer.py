@@ -5,7 +5,7 @@ from .utils import *
 from src.losses.loss import FeatureBalanceLoss
 from src.clients import FedBalancerClient
 from src.methods.federated import run
-from src.train.train_utils import compute_layer_norms
+from src.train.train_utils import client_gradient, compute_layer_norms
 
 
 @ray.remote(max_calls=1)
@@ -18,7 +18,7 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
 
     # INFO - Call the model architecture and set parameters.
-    model = model_call(training_settings['model'], num_of_classes, features_map=True, data_type=client.data_type)
+    model = model_call(training_settings['model'], num_of_classes, feature_maps=True, data_type=client.data_type)
     model.load_state_dict(client.model)
     model = model.to(device)
 
@@ -71,11 +71,12 @@ def train(client: FedBalancerClient, training_settings: dict, num_of_classes: in
         client.epoch_counter += 1
 
     # INFO - Local model update
+    client.grad = client_gradient(previous=client.model, current=model.state_dict())
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
 
     # INFO - For the Aggregation Balancer
     if training_settings['aggregator'].lower() == 'balancer':
-        client.model_norm = compute_layer_norms(model)
+        client.grad_norm = compute_layer_norms(client.grad)
 
     return client
 

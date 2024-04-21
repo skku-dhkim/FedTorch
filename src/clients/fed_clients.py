@@ -35,7 +35,8 @@ class Client:
 
         # Model
         self.model: Optional[OrderedDict] = None
-        self.model_norm: Optional[dict] = None
+        self.grad: Optional[OrderedDict] = None
+        self.grad_norm: Optional[dict] = None
 
         # Cosine Similarity
         # self.cos_sim = torch.nn.CosineSimilarity(dim=-1).to(self.device)

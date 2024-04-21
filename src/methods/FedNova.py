@@ -5,7 +5,7 @@ from torch.optim.optimizer import Optimizer
 from . import *
 from .utils import *
 from src.methods.federated import run
-from src.train.train_utils import compute_layer_norms
+from src.train.train_utils import client_gradient, compute_layer_norms
 
 
 class FedNova(Optimizer):
@@ -171,7 +171,7 @@ def train(client: Client, training_settings: dict, num_of_classes: int):
     summary_writer = SummaryWriter(os.path.join(client.summary_path, "summaries"))
 
     # INFO - Call the model architecture and set parameters.
-    model = model_call(training_settings['model'], num_of_classes, features=False, data_type=client.data_type)
+    model = model_call(training_settings['model'], num_of_classes, data_type=client.data_type)
     model.load_state_dict(client.model)
     model = model.to(device)
 
@@ -220,11 +220,12 @@ def train(client: Client, training_settings: dict, num_of_classes: int):
         summary_writer.add_scalar('loss/local_test', test_losses, client.epoch_counter)
 
     # INFO - Local model update
+    client.grad = client_gradient(previous=client.model, current=model.state_dict())
     client.model = OrderedDict({k: v.clone().detach().cpu() for k, v in model.state_dict().items()})
 
     # INFO - For the Aggregation Balancer
     if training_settings['aggregator'].lower() == 'balancer':
-        client.model_norm = compute_layer_norms(model)
+        client.grad_norm = compute_layer_norms(client.grad)
 
     return client
 
